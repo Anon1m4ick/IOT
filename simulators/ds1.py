@@ -10,7 +10,7 @@ def generate_values(initial_value=0):
             state = 1 - state
         yield state
 
-def run_ds1_simulator(delay, callback, stop_event):
+def run_ds1_simulator(callback, stop_event):
     for button_state in generate_values():
         if button_state == 1:
             callback("Button Pressed")
