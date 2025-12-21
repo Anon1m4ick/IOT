@@ -9,10 +9,13 @@ def dms_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Message: {message}")
 
-def run_dms(settings, threads, stop_event):
+def run_dms(settings, threads, stop_event, callback=None):
+    if callback is None:
+        callback = dms_callback
+    
     if settings['simulated']:
         print("Starting dms simulator")
-        dms_thread = threading.Thread(target=run_dms_simulator, args=(dms_callback, stop_event))
+        dms_thread = threading.Thread(target=run_dms_simulator, args=(callback, stop_event))
         dms_thread.start()
         threads.append(dms_thread)
         print("Dms simulator started")
@@ -20,7 +23,7 @@ def run_dms(settings, threads, stop_event):
         from sensors.dms import run_dms_loop, DMS
         print("Starting dms loop")
         dms = DMS(settings['rows'], settings['cols'])
-        dms_thread = threading.Thread(target=run_dms_loop, args=(dms, 0.5, dms_callback, stop_event))
+        dms_thread = threading.Thread(target=run_dms_loop, args=(dms, 0.5, callback, stop_event))
         dms_thread.start()
         threads.append(dms_thread)
         print("Dms loop started")
