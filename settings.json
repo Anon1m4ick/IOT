@@ -1,33 +1,33 @@
 {
-  "DS1": {
-    "simulated": true,
-    "pin": 5
-  },
+    "DS1": {
+        "simulated": true,
+        "pin": 5
+    },
 
-  "DPIR1": {
-    "simulated": true,
-    "pin": 6
-  },
+    "DPIR1": {
+        "simulated": true,
+        "pin": 6
+    },
 
-  "DUS1": {
-    "simulated": true,
-    "trig_pin": 23,
-    "echo_pin": 24
-  },
+    "DUS1": {
+        "simulated": true,
+        "trig_pin": 23,
+        "echo_pin": 24
+    },
 
-  "DMS": {
-    "simulated": true,
-    "rows": [12, 16, 20, 21],
-    "cols": [5, 6, 13, 19]
-  },
+    "DMS": {
+        "simulated": true,
+        "rows": [12, 16, 20, 21],
+        "cols": [5, 6, 13, 19]
+    },
 
-  "DL": {
-    "simulated": true,
-    "pin": 17
-  },
+    "DL": {
+        "simulated": true,
+        "pin": 17
+    },
 
-  "DB": {
-    "simulated": true,
-    "pin": 27
-  }
+    "DB": {
+        "simulated": true,
+        "pin": 27
+    }
 }
