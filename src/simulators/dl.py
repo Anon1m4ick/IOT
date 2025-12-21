@@ -1,8 +1,6 @@
 import time
-import random
 
 def run_dl_simulator(callback, stop_event):
-    state = 0
     while not stop_event.is_set():
         time.sleep(0.1)
     callback("LED Simulator stopped")
@@ -21,4 +19,3 @@ def get_dl_state():
         return 0
 
 _dl_state = 0
-

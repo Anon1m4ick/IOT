@@ -1,0 +1,37 @@
+Screen {
+    background: $surface;
+}
+
+#sensor-panel {
+    height: 70%;
+    border: solid $primary;
+    padding: 1;
+}
+
+#command-panel {
+    height: 30%;
+    border: solid $primary;
+    padding: 1;
+}
+
+#status-bar {
+    height: 3;
+    background: $panel;
+    padding: 1;
+}
+
+.panel-title {
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 1;
+}
+
+.help-text {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#command-input {
+    margin-top: 1;
+}
+
