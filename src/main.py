@@ -173,11 +173,11 @@ Commands:
 
             if action == 'on':
                 self.actuators['DL']['set_state'](1)
-                self._update_status("✓ Door Light turned ON")
+                self._update_status("Door Light turned ON")
                 self.sensor_log.add_sensor_data("SYSTEM", "Door Light turned ON")
             elif action == 'off':
                 self.actuators['DL']['set_state'](0)
-                self._update_status("✓ Door Light turned OFF")
+                self._update_status("Door Light turned OFF")
                 self.sensor_log.add_sensor_data("SYSTEM", "Door Light turned OFF")
             elif action == 'status':
                 state = self.actuators['DL']['get_state']()
@@ -214,7 +214,7 @@ Commands:
 
                 thread = threading.Thread(target=buzzer_thread)
                 thread.start()
-                self._update_status(f"✓ Buzzer activation started: {frequency}Hz for {duration}s")
+                self._update_status(f"Buzzer activation started: {frequency}Hz for {duration}s")
                 self.sensor_log.add_sensor_data("SYSTEM", f"Buzzer activated: {frequency}Hz for {duration}s")
             else:
                 self._update_status("Usage: db activate [frequency] [duration]")
