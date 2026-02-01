@@ -14,6 +14,7 @@ from components.dpir1 import run_dpir1
 from components.dms import run_dms
 from components.dl import run_dl
 from components.db import run_db
+from mqtt_publisher import MQTTPublisher
 
 
 class SensorLog(RichLog):
@@ -53,8 +54,10 @@ class SmartHomeTUI(App):
         self.sensor_log = None
         self.status_bar = None
         self.command_input = None
+        self.mqtt_publisher = None
 
         self._init_actuators()
+        self._init_mqtt_publisher()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -79,6 +82,7 @@ class SmartHomeTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        print("[Main] TUI mounted - application is running")
         self.sensor_log = self.query_one("#sensor-log", SensorLog)
         self.status_bar = self.query_one("#status-bar", Static)
         self.command_input = self.query_one("#command-input", Input)
@@ -86,6 +90,7 @@ class SmartHomeTUI(App):
 
         self._start_sensors()
         self._update_status("System ready. Type commands or 'help' for help.")
+        print("[Main] Sensors started, TUI is ready")
 
     def _init_actuators(self):
         if 'DL' in self.settings:
@@ -93,32 +98,53 @@ class SmartHomeTUI(App):
 
         if 'DB' in self.settings:
             self.actuators['DB'] = run_db(self.settings['DB'])
+    
+    def _init_mqtt_publisher(self):
+        """Initialize MQTT publisher if MQTT config is available."""
+        mqtt_config = self.settings.get('mqtt')
+        device_config = self.settings.get('device', {})
+        
+        if mqtt_config:
+            try:
+                self.mqtt_publisher = MQTTPublisher(mqtt_config, device_config)
+                self.mqtt_publisher.start()
+                print("[Main] MQTT publisher initialized and started")
+            except Exception as e:
+                print(f"[Main] Warning: Failed to initialize MQTT publisher: {e}")
+                self.mqtt_publisher = None
+        else:
+            print("[Main] MQTT configuration not found, MQTT publisher disabled")
 
     def _start_sensors(self):
         def create_callback(sensor_name):
             def callback(message):
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    sensor_name,
-                    str(message)
-                )
+                try:
+                    if self.stop_event.is_set() or self.sensor_log is None:
+                        return
+                    self.call_from_thread(
+                        self.sensor_log.add_sensor_data,
+                        sensor_name,
+                        str(message)
+                    )
+                except (RuntimeError, AttributeError, Exception):
+                    pass
             return callback
 
         if 'DS1' in self.settings:
             callback = create_callback("DS1")
-            run_ds1(self.settings['DS1'], self.threads, self.stop_event, callback)
+            run_ds1(self.settings['DS1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DUS1' in self.settings:
             callback = create_callback("DUS1")
-            run_dus1(self.settings['DUS1'], self.threads, self.stop_event, callback)
+            run_dus1(self.settings['DUS1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DPIR1' in self.settings:
             callback = create_callback("DPIR1")
-            run_dpir1(self.settings['DPIR1'], self.threads, self.stop_event, callback)
+            run_dpir1(self.settings['DPIR1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DMS' in self.settings:
             callback = create_callback("DMS")
-            run_dms(self.settings['DMS'], self.threads, self.stop_event, callback)
+            run_dms(self.settings['DMS'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
@@ -252,10 +278,19 @@ Commands:
     def action_quit(self) -> None:
         self._update_status("Shutting down...")
         self.stop_event.set()
+        
+        if self.mqtt_publisher:
+            self.mqtt_publisher.stop()
+        
         self.exit()
 
     def on_unmount(self) -> None:
+        print("[Main] on_unmount called - application is closing")
         self.stop_event.set()
+        
+        if self.mqtt_publisher:
+            self.mqtt_publisher.stop()
+        
         for thread in self.threads:
             thread.join(timeout=2)
 
@@ -278,7 +313,18 @@ def main():
         sys.exit(1)
 
     app = SmartHomeTUI(settings)
-    app.run()
+    
+    try:
+        print("[Main] Starting TUI application...")
+        app.run()
+    except KeyboardInterrupt:
+        print("\n[Main] Interrupted by user")
+    except Exception as e:
+        print(f"[Main] Error running TUI: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("[Main] Application finished")
 
 
 if __name__ == "__main__":

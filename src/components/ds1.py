@@ -10,13 +10,19 @@ def ds1_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Message: {message}")
 
-def run_ds1(settings, threads, stop_event, callback=None):
+def run_ds1(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     if callback is None:
         callback = ds1_callback
+
+    def enhanced_callback(message):
+        callback(message)
+        if mqtt_publisher:
+            value = 1 if "Pressed" in str(message) else 0
+            mqtt_publisher.add_sensor_data("DS1", value, settings['simulated'])
     
     if settings['simulated']:
         print("Starting ds1 simulator")
-        ds1_thread = threading.Thread(target=run_ds1_simulator, args=(callback, stop_event))
+        ds1_thread = threading.Thread(target=run_ds1_simulator, args=(enhanced_callback, stop_event))
         ds1_thread.start()
         threads.append(ds1_thread)
         print("Ds1 simulator started")
@@ -24,10 +30,11 @@ def run_ds1(settings, threads, stop_event, callback=None):
         from sensors.ds1 import run_ds1_loop, DS1
         print("Starting ds1 loop")
         ds1 = DS1(settings['pin'])
-        ds1_thread = threading.Thread(target=run_ds1_loop, args=(ds1, 0.5, callback, stop_event))
+        ds1_thread = threading.Thread(target=run_ds1_loop, args=(ds1, 0.5, enhanced_callback, stop_event))
         ds1_thread.start()
         threads.append(ds1_thread)
         print("Ds1 loop started")
+
 
 # settings = load_settings()
 # ds1_settings = settings['DS1']

@@ -1,0 +1,26 @@
+{
+    "device": {
+        "pi_id": "PI1",
+        "device_name": "SmartHome Controller PI1"
+    },
+    "mqtt": {
+        "broker_host": "mosquitto",
+        "broker_port": 1883,
+        "client_id": "pi1_client",
+        "server_client_id": "iot_server",
+        "topics": {
+            "DS1": "sensors/ds1",
+            "DUS1": "sensors/dus1",
+            "DPIR1": "sensors/dpir1",
+            "DMS": "sensors/dms"
+        },
+        "batch_size": 10,
+        "batch_interval_seconds": 5
+    },
+    "influxdb": {
+        "url": "http://influxdb:8086",
+        "token": "iot-influx-token",
+        "org": "FTN",
+        "bucket": "NTP"
+    }
+}

@@ -1,0 +1,59 @@
+# InfluxDB, Grafana, Mosquitto (MQTT), Flask server — одно окружение
+# Запуск: docker compose up -d
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: iot-mosquitto
+    ports:
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - iot-net
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: iot-influxdb
+    ports:
+      - "127.0.0.1:8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_ORG: FTN
+      DOCKER_INFLUXDB_INIT_BUCKET: NTP
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: iot-influx-token
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminadmin
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    networks:
+      - iot-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: iot-grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - iot-net
+    depends_on:
+      - influxdb
+    restart: unless-stopped
+
+
+volumes:
+  influxdb-data:
+  grafana-data:
+
+networks:
+  iot-net:
+    driver: bridge

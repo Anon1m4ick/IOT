@@ -1,4 +1,31 @@
 {
+    "device": {
+        "pi_id": "PI1",
+        "device_name": "SmartHome Controller PI1"
+    },
+    
+    "mqtt": {
+        "broker_host": "localhost",
+        "broker_port": 1883,
+        "client_id": "pi1_client",
+        "server_client_id": "iot_server",
+        "topics": {
+            "DS1": "sensors/ds1",
+            "DUS1": "sensors/dus1",
+            "DPIR1": "sensors/dpir1",
+            "DMS": "sensors/dms"
+        },
+        "batch_size": 10,
+        "batch_interval_seconds": 5
+    },
+    
+    "influxdb": {
+        "url": "http://localhost:8086",
+        "token": "-JPLM8goE7bd5FNnXgE8swchkWgXkLzkAkrzLcrxjaoHYtoso5v3FOtcjuT02ZDWTB0nwCWyA1bpOL9s_ihq3A==",
+        "org": "FTN",
+        "bucket": "NTP"
+    },
+    
     "DS1": {
         "simulated": true,
         "pin": 5
