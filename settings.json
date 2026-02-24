@@ -11,8 +11,12 @@
         "server_client_id": "iot_server",
         "topics": {
             "DS1": "sensors/ds1",
+            "DS2": "sensors/ds2",
             "DUS1": "sensors/dus1",
+            "DUS2": "sensors/dus2",
             "DPIR1": "sensors/dpir1",
+            "DPIR2": "sensors/dpir2",
+            "DPIR3": "sensors/dpir3",
             "DMS": "sensors/dms"
         },
         "batch_size": 10,
@@ -31,12 +35,33 @@
         "pin": 5
     },
 
+    "DS2": {
+        "simulated": true,
+        "pin": 5
+    },
+
     "DPIR1": {
         "simulated": true,
         "pin": 6
     },
 
+    "DPIR2": {
+        "simulated": true,
+        "pin": 6
+    },
+
+    "DPIR3": {
+        "simulated": true,
+        "pin": 6
+    },
+
     "DUS1": {
+        "simulated": true,
+        "trig_pin": 23,
+        "echo_pin": 24
+    },
+
+    "DUS2": {
         "simulated": true,
         "trig_pin": 23,
         "echo_pin": 24

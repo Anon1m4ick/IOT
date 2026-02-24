@@ -9,8 +9,12 @@ from textual.widgets import Header, Footer, Input, RichLog, Static
 from textual.binding import Binding
 from settings import load_settings
 from components.ds1 import run_ds1
+from components.ds2 import run_ds2
 from components.dus1 import run_dus1
+from components.dus2 import run_dus2
 from components.dpir1 import run_dpir1
+from components.dpir2 import run_dpir2
+from components.dpir3 import run_dpir3
 from components.dms import run_dms
 from components.dl import run_dl
 from components.db import run_db
@@ -27,8 +31,12 @@ class SensorLog(RichLog):
         timestamp = time.strftime('%H:%M:%S', t)
         colors = {
             'DS1': 'blue',
+            'DS2': 'blue',
             'DUS1': 'cyan',
+            'DUS2': 'cyan',
             'DPIR1': 'yellow',
+            'DPIR2': 'yellow',
+            'DPIR3': 'yellow',
             'DMS': 'magenta',
             'SYSTEM': 'green'
         }
@@ -146,6 +154,22 @@ class SmartHomeTUI(App):
             callback = create_callback("DMS")
             run_dms(self.settings['DMS'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
+        if 'DS2' in self.settings:
+            callback = create_callback("DS2")
+            run_ds2(self.settings['DS2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
+
+        if 'DUS2' in self.settings:
+            callback = create_callback("DUS2")
+            run_dus2(self.settings['DUS2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
+
+        if 'DPIR2' in self.settings:
+            callback = create_callback("DPIR2")
+            run_dpir2(self.settings['DPIR2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
+
+        if 'DPIR3' in self.settings:
+            callback = create_callback("DPIR3")
+            run_dpir3(self.settings['DPIR3'], self.threads, self.stop_event, callback, self.mqtt_publisher)
+
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
             if from_thread:
@@ -247,7 +271,7 @@ Commands:
 
         elif cmd == 'sensors':
             info = "\nSensor Status:\n"
-            sensors = ['DS1', 'DUS1', 'DPIR1', 'DMS']
+            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS']
             for sensor in sensors:
                 if sensor in self.settings:
                     simulated = "Simulated" if self.settings[sensor]['simulated'] else "Real"
