@@ -12,3 +12,4 @@ uc-micro-py==1.0.3
 paho-mqtt==2.1.0
 flask==3.1.0
 influxdb-client==1.41.0
+RPi.GPIO==0.7.1; platform_machine == "armv7l" or platform_machine == "aarch64"
