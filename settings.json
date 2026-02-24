@@ -17,7 +17,13 @@
             "DPIR1": "sensors/dpir1",
             "DPIR2": "sensors/dpir2",
             "DPIR3": "sensors/dpir3",
-            "DMS": "sensors/dms"
+            "DMS": "sensors/dms",
+            "DHT1_HUMIDITY": "sensors/dht1_humidity",
+            "DHT1_TEMPERATURE": "sensors/dht1_temperature",
+            "DHT2_HUMIDITY": "sensors/dht2_humidity",
+            "DHT2_TEMPERATURE": "sensors/dht2_temperature",
+            "DHT3_HUMIDITY": "sensors/dht3_humidity",
+            "DHT3_TEMPERATURE": "sensors/dht3_temperature"
         },
         "batch_size": 10,
         "batch_interval_seconds": 5
@@ -81,5 +87,20 @@
     "DB": {
         "simulated": true,
         "pin": 27
+    },
+
+    "DHT1": {
+        "simulated": true,
+        "pin": 4
+    },
+
+    "DHT2": {
+        "simulated": true,
+        "pin": 4
+    },
+
+    "DHT3": {
+        "simulated": true,
+        "pin": 4
     }
 }

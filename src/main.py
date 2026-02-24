@@ -16,6 +16,9 @@ from components.dpir1 import run_dpir1
 from components.dpir2 import run_dpir2
 from components.dpir3 import run_dpir3
 from components.dms import run_dms
+from components.dht1 import run_dht1
+from components.dht2 import run_dht2
+from components.dht3 import run_dht3
 from components.dl import run_dl
 from components.db import run_db
 from mqtt_publisher import MQTTPublisher
@@ -38,6 +41,9 @@ class SensorLog(RichLog):
             'DPIR2': 'yellow',
             'DPIR3': 'yellow',
             'DMS': 'magenta',
+            'DHT1': 'red',
+            'DHT2': 'red',
+            'DHT3': 'red',
             'SYSTEM': 'green'
         }
         color = colors.get(sensor_name, 'white')
@@ -170,6 +176,36 @@ class SmartHomeTUI(App):
             callback = create_callback("DPIR3")
             run_dpir3(self.settings['DPIR3'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
+        if 'DHT1' in self.settings:
+            def dht1_callback(humidity, temperature, code):
+                message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "DHT1",
+                    message
+                )
+            run_dht1(self.settings['DHT1'], self.threads, self.stop_event, dht1_callback, self.mqtt_publisher)
+
+        if 'DHT2' in self.settings:
+            def dht2_callback(humidity, temperature, code):
+                message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "DHT2",
+                    message
+                )
+            run_dht2(self.settings['DHT2'], self.threads, self.stop_event, dht2_callback, self.mqtt_publisher)
+
+        if 'DHT3' in self.settings:
+            def dht3_callback(humidity, temperature, code):
+                message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "DHT3",
+                    message
+                )
+            run_dht3(self.settings['DHT3'], self.threads, self.stop_event, dht3_callback, self.mqtt_publisher)
+
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
             if from_thread:
@@ -271,7 +307,7 @@ Commands:
 
         elif cmd == 'sensors':
             info = "\nSensor Status:\n"
-            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS']
+            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS', 'DHT1', 'DHT2', 'DHT3']
             for sensor in sensors:
                 if sensor in self.settings:
                     simulated = "Simulated" if self.settings[sensor]['simulated'] else "Real"
