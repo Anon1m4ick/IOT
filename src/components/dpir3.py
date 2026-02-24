@@ -27,4 +27,10 @@ def run_dpir3(settings, threads, stop_event, callback=None, mqtt_publisher=None)
         threads.append(dpir3_thread)
         print("Dpir3 simulator started")
     else:
-        print("Error: Real hardware implementation for DPIR3 is not available. Please use simulated mode.")
+        from sensors.dpir3 import run_dpir3_loop, DPIR3
+        print("Starting dpir3 loop")
+        dpir3 = DPIR3(settings['pin'])
+        dpir3_thread = threading.Thread(target=run_dpir3_loop, args=(dpir3, 0.5, enhanced_callback, stop_event))
+        dpir3_thread.start()
+        threads.append(dpir3_thread)
+        print("Dpir3 loop started")
