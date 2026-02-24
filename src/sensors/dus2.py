@@ -16,13 +16,13 @@ except (ImportError, RuntimeError):
 class DUS2:
     """Ultrasonic distance sensor (HC-SR04) controller"""
     
-    def __init__(self, trig_pin=23, echo_pin=24):
+    def __init__(self, trig_pin, echo_pin):
         """
         Initialize ultrasonic sensor.
         
         Args:
-            trig_pin: GPIO pin for trigger (default: 23)
-            echo_pin: GPIO pin for echo (default: 24)
+            trig_pin: GPIO pin for trigger (from settings.json)
+            echo_pin: GPIO pin for echo (from settings.json)
         """
         if not GPIO_AVAILABLE:
             raise RuntimeError("RPi.GPIO is not available. This code must run on a Raspberry Pi.")
@@ -121,7 +121,8 @@ def run_dus2_loop(dus2_instance, interval=1.0, callback=None, stop_event=None):
 
 if __name__ == '__main__':
     # Test code
-    dus2 = DUS2()
+    # Example usage: dus2 = DUS2(trig_pin=23, echo_pin=24)
+    dus2 = DUS2(trig_pin=23, echo_pin=24)
     try:
         while True:
             distance = dus2.get_distance()
