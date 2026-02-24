@@ -56,7 +56,7 @@ class DUS2:
         pulse_start_time = time.time()
         pulse_end_time = time.time()
         
-        max_iter = 100
+        max_iter = 10000
         
         # Wait for echo to go high
         iter_count = 0
