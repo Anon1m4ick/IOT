@@ -26,4 +26,12 @@ def run_dms(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         threads.append(dms_thread)
         print("Dms simulator started")
     else:
-       pass
+        from sensors.dms import run_dms_loop, DMS
+        print("Starting dms real hardware")
+        rows = settings.get('rows', [25, 8, 7, 1])
+        cols = settings.get('cols', [12, 16, 20, 21])
+        dms = DMS(rows=rows, cols=cols)
+        dms_thread = threading.Thread(target=run_dms_loop, args=(dms, 0.2, enhanced_callback, stop_event))
+        dms_thread.start()
+        threads.append(dms_thread)
+        print("Dms real hardware started")

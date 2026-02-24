@@ -1,7 +1,6 @@
 import threading
 import time
 
-from settings import load_settings
 from simulators.dus1 import run_dus1_simulator
 
 def dus1_callback(message):
@@ -34,9 +33,3 @@ def run_dus1(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         dus1_thread.start()
         threads.append(dus1_thread)
         print("Dus1 loop started")
-
-# settings = load_settings()
-# ds1_settings = settings['DS1']
-# threads = []
-# stop_event = threading.Event()
-# run_dus1(ds1_settings, threads, stop_event)
