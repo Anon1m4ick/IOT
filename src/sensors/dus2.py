@@ -1,5 +1,5 @@
 """
-Real implementation of DUS1 (Door Ultrasonic Sensor) using RPi.GPIO
+Real implementation of DUS2 (Door Ultrasonic Sensor) using RPi.GPIO
 """
 import time
 import threading
@@ -13,10 +13,10 @@ except (ImportError, RuntimeError):
     GPIO = None
 
 
-class DUS1:
+class DUS2:
     """Ultrasonic distance sensor (HC-SR04) controller"""
     
-    def __init__(self, trig_pin=4, echo_pin=17):
+    def __init__(self, trig_pin=23, echo_pin=24):
         """
         Initialize ultrasonic sensor.
         
@@ -86,12 +86,12 @@ class DUS1:
             GPIO.cleanup()
 
 
-def run_dus1_loop(dus1_instance, interval=1.0, callback=None, stop_event=None):
+def run_dus2_loop(dus2_instance, interval=1.0, callback=None, stop_event=None):
     """
     Run continuous loop reading distance sensor.
     
     Args:
-        dus1_instance: DUS1 instance
+        dus2_instance: DUS2 instance
         interval: Time between measurements in seconds
         callback: Function to call with distance value (receives distance in cm)
         stop_event: threading.Event to stop the loop
@@ -101,37 +101,37 @@ def run_dus1_loop(dus1_instance, interval=1.0, callback=None, stop_event=None):
     
     try:
         while not stop_event.is_set():
-            distance = dus1_instance.get_distance()
+            distance = dus2_instance.get_distance()
             if distance is not None:
                 if callback:
                     callback(int(distance))
             else:
                 if callback:
-                    callback("Measurement timed out call")
+                    callback("Measurement timed out")
             
             time.sleep(interval)
     
     except KeyboardInterrupt:
-        print('\n[DUS1] Measurement stopped by user')
-        dus1_instance.cleanup()
+        print('\n[DUS2] Measurement stopped by user')
+        dus2_instance.cleanup()
     except Exception as e:
-        print(f'[DUS1] Error: {str(e)}')
-        dus1_instance.cleanup()
+        print(f'[DUS2] Error: {str(e)}')
+        dus2_instance.cleanup()
 
 
 if __name__ == '__main__':
     # Test code
-    dus1 = DUS1()
+    dus2 = DUS2()
     try:
         while True:
-            distance = dus1.get_distance()
+            distance = dus2.get_distance()
             if distance is not None:
                 print(f'Distance: {distance} cm')
             else:
-                print('Measurement timed out dist')
+                print('Measurement timed out')
             time.sleep(1)
     except KeyboardInterrupt:
-        dus1.cleanup()
+        dus2.cleanup()
         print('Measurement stopped by user')
     except Exception as e:
         print(f'Error: {str(e)}')
