@@ -23,7 +23,8 @@
             "DHT2_HUMIDITY": "sensors/dht2_humidity",
             "DHT2_TEMPERATURE": "sensors/dht2_temperature",
             "DHT3_HUMIDITY": "sensors/dht3_humidity",
-            "DHT3_TEMPERATURE": "sensors/dht3_temperature"
+            "DHT3_TEMPERATURE": "sensors/dht3_temperature",
+            "GSG": "sensors/gsg"
         },
         "batch_size": 10,
         "batch_interval_seconds": 5
@@ -108,5 +109,12 @@
         "simulated": true,
         "rotation_interval": 3,
         "i2c_address": null
+    },
+
+    "GSG": {
+        "simulated": true,
+        "interval": 2,
+        "threshold": 2000,
+        "calibration_samples": 10
     }
 }

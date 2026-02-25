@@ -20,6 +20,7 @@ from components.dht1 import run_dht1
 from components.dht2 import run_dht2
 from components.dht3 import run_dht3
 from components.lcd import run_lcd
+from components.gsg import run_gsg
 from components.dl import run_dl
 from components.db import run_db
 from mqtt_publisher import MQTTPublisher
@@ -46,6 +47,7 @@ class SensorLog(RichLog):
             'DHT2': 'red',
             'DHT3': 'red',
             'LCD': 'green',
+            'GSG': 'white',
             'SYSTEM': 'green'
         }
         color = colors.get(sensor_name, 'white')
@@ -216,6 +218,17 @@ class SmartHomeTUI(App):
                     message
                 )
             run_lcd(self.settings['LCD'], self.threads, self.stop_event, lcd_callback, self.mqtt_publisher)
+
+        if 'GSG' in self.settings:
+            def gsg_callback(value):
+                status = "Movement detected" if value == 1 else "No movement"
+                message = f"{status} ({value})"
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "GSG",
+                    message
+                )
+            run_gsg(self.settings['GSG'], self.threads, self.stop_event, gsg_callback, self.mqtt_publisher)
 
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
