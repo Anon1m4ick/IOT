@@ -108,3 +108,73 @@ from(bucket: "NTP")
   |> filter(fn: (r) => r["_field"] == "value")
   |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
 ```
+
+### GSG - Gyroscope Sensor (Motion Detection)
+
+**Query for graph (shows movement events 0 or 1):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "GSG")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+```
+
+**Query for events table (shows only movement events):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "GSG")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> filter(fn: (r) => r["_value"] == 1.0)
+  |> keep(columns: ["_time", "_value", "pi_id", "device_name"])
+  |> sort(columns: ["_time"], desc: true)
+```
+
+### IR - Infrared Receiver
+
+**Query for button presses (Table panel with button values):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "IR")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> keep(columns: ["_time", "_value", "button_value", "pi_id", "device_name"])
+  |> sort(columns: ["_time"], desc: true)
+```
+
+**Query for button presses graph (shows button numbers 0-9):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "IR")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+```
+
+### BRGB - RGB LED Actuator
+
+**Query for color changes (Table panel with color names):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "BRGB")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> keep(columns: ["_time", "_value", "color_value", "pi_id", "device_name"])
+  |> sort(columns: ["_time"], desc: true)
+```
+
+**Query for color changes timeline (Graph panel):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "BRGB")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
+```

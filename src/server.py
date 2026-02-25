@@ -111,6 +111,20 @@ class MQTTInfluxDBBridge:
                 # Also store numeric value for graphing (mapping: 0-9 = 0-9, A=10, B=11, C=12, D=13, *=14, #=15)
                 numeric_value = self._convert_dms_value(button_char)
                 point = point.field("value", numeric_value)
+            elif sensor_type == "IR":
+                # For IR, store string value as tag and numeric mapping as field
+                string_value = str(raw_value).strip()
+                point = point.tag("button_value", string_value)
+                # IR: button numbers 0-9 map to 0-9
+                numeric_value = float(string_value) if string_value.isdigit() else 0.0
+                point = point.field("value", numeric_value)
+            elif sensor_type == "BRGB":
+                # For BRGB, store string value as tag and use hash for graphing (to maintain old graph appearance)
+                string_value = str(raw_value).strip()
+                point = point.tag("color_value", string_value)
+                # Use hash to get values in 2k-10k range (like before)
+                numeric_value = float(hash(string_value) % 10000)
+                point = point.field("value", numeric_value)
             else:
                 # For other sensors, use standard conversion
                 point = point.field("value", self._convert_value(raw_value))
