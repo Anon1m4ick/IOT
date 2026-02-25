@@ -102,5 +102,11 @@
     "DHT3": {
         "simulated": true,
         "pin": 4
+    },
+
+    "LCD": {
+        "simulated": true,
+        "rotation_interval": 3,
+        "i2c_address": null
     }
 }

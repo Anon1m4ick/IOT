@@ -19,6 +19,7 @@ from components.dms import run_dms
 from components.dht1 import run_dht1
 from components.dht2 import run_dht2
 from components.dht3 import run_dht3
+from components.lcd import run_lcd
 from components.dl import run_dl
 from components.db import run_db
 from mqtt_publisher import MQTTPublisher
@@ -44,6 +45,7 @@ class SensorLog(RichLog):
             'DHT1': 'red',
             'DHT2': 'red',
             'DHT3': 'red',
+            'LCD': 'green',
             'SYSTEM': 'green'
         }
         color = colors.get(sensor_name, 'white')
@@ -205,6 +207,15 @@ class SmartHomeTUI(App):
                     message
                 )
             run_dht3(self.settings['DHT3'], self.threads, self.stop_event, dht3_callback, self.mqtt_publisher)
+
+        if 'LCD' in self.settings:
+            def lcd_callback(message):
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "LCD",
+                    message
+                )
+            run_lcd(self.settings['LCD'], self.threads, self.stop_event, lcd_callback, self.mqtt_publisher)
 
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:

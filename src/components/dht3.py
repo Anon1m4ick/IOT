@@ -1,6 +1,7 @@
 import threading
 import time
 from simulators.dht3 import run_dht3_simulator
+from dht_data_store import update_dht_data
 
 def dht3_callback(humidity, temperature, code):
     t = time.localtime()
@@ -16,6 +17,8 @@ def run_dht3(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     
     def enhanced_callback(humidity, temperature, code):
         callback(humidity, temperature, code)
+        # Store data in shared store for LCD
+        update_dht_data('DHT3', humidity, temperature)
         if mqtt_publisher:
             # Send humidity
             mqtt_publisher.add_sensor_data("DHT3_HUMIDITY", humidity, settings['simulated'])
