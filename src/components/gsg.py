@@ -26,7 +26,7 @@ def run_gsg(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     if callback is None:
         callback = gsg_callback
     
-    interval = settings.get('interval', 2)  # Default 2 seconds
+    interval = settings.get('interval', 0.5)  # Default 0.5 seconds
     
     # Track previous state to send only on change
     previous_state = [None]  # Use list to allow modification in nested function

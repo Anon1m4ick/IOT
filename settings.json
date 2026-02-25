@@ -24,7 +24,9 @@
             "DHT2_TEMPERATURE": "sensors/dht2_temperature",
             "DHT3_HUMIDITY": "sensors/dht3_humidity",
             "DHT3_TEMPERATURE": "sensors/dht3_temperature",
-            "GSG": "sensors/gsg"
+            "GSG": "sensors/gsg",
+            "IR": "sensors/ir",
+            "BRGB": "sensors/brgb"
         },
         "batch_size": 10,
         "batch_interval_seconds": 5
@@ -113,8 +115,20 @@
 
     "GSG": {
         "simulated": true,
-        "interval": 2,
+        "interval": 0.5,
         "threshold": 2000,
         "calibration_samples": 10
+    },
+
+    "IR": {
+        "simulated": true,
+        "pin": 17
+    },
+
+    "BRGB": {
+        "simulated": true,
+        "red_pin": 12,
+        "green_pin": 13,
+        "blue_pin": 19
     }
 }

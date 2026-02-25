@@ -21,6 +21,8 @@ from components.dht2 import run_dht2
 from components.dht3 import run_dht3
 from components.lcd import run_lcd
 from components.gsg import run_gsg
+from components.ir import run_ir
+from components.brgb import run_brgb
 from components.dl import run_dl
 from components.db import run_db
 from mqtt_publisher import MQTTPublisher
@@ -48,6 +50,8 @@ class SensorLog(RichLog):
             'DHT3': 'red',
             'LCD': 'green',
             'GSG': 'white',
+            'IR': 'magenta',
+            'BRGB': 'cyan',
             'SYSTEM': 'green'
         }
         color = colors.get(sensor_name, 'white')
@@ -73,6 +77,7 @@ class SmartHomeTUI(App):
         self.status_bar = None
         self.command_input = None
         self.mqtt_publisher = None
+        self.brgb_handler = None  # Handler for BRGB control via IR commands
 
         self._init_actuators()
         self._init_mqtt_publisher()
@@ -88,7 +93,7 @@ class SmartHomeTUI(App):
             with Vertical(id="command-panel"):
                 yield Static("Commands", classes="panel-title")
                 yield Static(
-                    "Commands: dl on/off/status | db activate [freq] [dur] | sensors | actuators | help",
+                    "Commands: dl on/off/status | db activate [freq] [dur] | ir <0-9> | sensors | actuators | help",
                     classes="help-text"
                 )
                 yield Input(
@@ -230,6 +235,25 @@ class SmartHomeTUI(App):
                 )
             run_gsg(self.settings['GSG'], self.threads, self.stop_event, gsg_callback, self.mqtt_publisher)
 
+        # Initialize BRGB first (to get handler), then IR (to pass handler)
+        if 'BRGB' in self.settings:
+            def brgb_callback(message):
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "BRGB",
+                    message
+                )
+            self.brgb_handler = run_brgb(self.settings['BRGB'], self.threads, self.stop_event, brgb_callback, self.mqtt_publisher)
+        
+        if 'IR' in self.settings:
+            def ir_callback(button):
+                self.call_from_thread(
+                    self.sensor_log.add_sensor_data,
+                    "IR",
+                    f"Button pressed: {button}"
+                )
+            run_ir(self.settings['IR'], self.threads, self.stop_event, ir_callback, self.mqtt_publisher, self.brgb_handler)
+
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
             if from_thread:
@@ -264,6 +288,9 @@ class SmartHomeTUI(App):
 Commands:
   dl on/off/status    - Control Door Light
   db activate [freq] [dur] - Activate Buzzer (default: 1000Hz, 1s)
+  ir <0-9>            - Simulate IR button press (controls BRGB)
+                       0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE,
+                       5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE
   sensors             - Show sensor status
   actuators           - Show actuator status
   help                - Show this help
@@ -328,6 +355,38 @@ Commands:
                 self.sensor_log.add_sensor_data("SYSTEM", f"Buzzer activated: {frequency}Hz for {duration}s")
             else:
                 self._update_status("Usage: db activate [frequency] [duration]")
+
+        elif cmd == 'ir':
+            if len(parts) < 2:
+                self._update_status("Usage: ir <0-9> (0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE, 5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE)")
+                return
+            
+            if not self.brgb_handler:
+                self._update_status("Error: BRGB not configured")
+                return
+            
+            try:
+                button_number = parts[1]
+                if button_number not in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+                    self._update_status("Error: Button must be 0-9")
+                    return
+                
+                # Simulate IR button press
+                self.brgb_handler(button_number)
+                
+                # Send to MQTT if publisher is available
+                if self.mqtt_publisher:
+                    self.mqtt_publisher.add_sensor_data("IR", button_number, self.settings.get('IR', {}).get('simulated', True))
+                
+                color_map = {
+                    '0': 'OFF', '1': 'WHITE', '2': 'RED', '3': 'GREEN', '4': 'BLUE',
+                    '5': 'YELLOW', '6': 'PURPLE', '7': 'LIGHT_BLUE', '8': 'OFF', '9': 'WHITE'
+                }
+                color = color_map.get(button_number, 'UNKNOWN')
+                self._update_status(f"IR button {button_number} pressed - BRGB: {color}")
+                self.sensor_log.add_sensor_data("SYSTEM", f"IR command: button {button_number} -> {color}")
+            except Exception as e:
+                self._update_status(f"Error: {e}")
 
         elif cmd == 'sensors':
             info = "\nSensor Status:\n"
