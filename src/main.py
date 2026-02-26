@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import threading
 import sys
 import time
@@ -25,7 +24,9 @@ from components.ir import run_ir
 from components.brgb import run_brgb
 from components.dl import run_dl
 from components.db import run_db
+from components.foursd import run_4sd
 from mqtt_publisher import MQTTPublisher
+from alarm_controller import AlarmController
 
 
 class SensorLog(RichLog):
@@ -52,6 +53,8 @@ class SensorLog(RichLog):
             'GSG': 'white',
             'IR': 'magenta',
             'BRGB': 'cyan',
+            '4SD': 'green',
+            'ALARM': 'red',
             'SYSTEM': 'green'
         }
         color = colors.get(sensor_name, 'white')
@@ -78,9 +81,11 @@ class SmartHomeTUI(App):
         self.command_input = None
         self.mqtt_publisher = None
         self.brgb_handler = None  # Handler for BRGB control via IR commands
+        self.alarm_controller = None
 
         self._init_actuators()
         self._init_mqtt_publisher()
+        self._init_alarm_controller()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -93,7 +98,7 @@ class SmartHomeTUI(App):
             with Vertical(id="command-panel"):
                 yield Static("Commands", classes="panel-title")
                 yield Static(
-                    "Commands: dl on/off/status | db activate [freq] [dur] | ir <0-9> | sensors | actuators | help",
+                    "Commands: dl ... | db ... | ir <0-9> | 4sd ... | alarm ... | sensors | actuators | help",
                     classes="help-text"
                 )
                 yield Input(
@@ -121,9 +126,20 @@ class SmartHomeTUI(App):
 
         if 'DB' in self.settings:
             self.actuators['DB'] = run_db(self.settings['DB'])
+
+    def _init_alarm_controller(self):
+        if 'ALARM' not in self.settings:
+            return
+        self.alarm_controller = AlarmController(
+            self.settings['ALARM'],
+            self.stop_event,
+            self.actuators,
+            mqtt_publisher=self.mqtt_publisher,
+            event_callback=lambda msg: self._safe_log_from_thread("ALARM", msg),
+            status_callback=lambda msg: self._update_status(f"ALARM: {msg}", from_thread=True),
+        )
     
     def _init_mqtt_publisher(self):
-        """Initialize MQTT publisher if MQTT config is available."""
         mqtt_config = self.settings.get('mqtt')
         device_config = self.settings.get('device', {})
         
@@ -139,6 +155,9 @@ class SmartHomeTUI(App):
             print("[Main] MQTT configuration not found, MQTT publisher disabled")
 
     def _start_sensors(self):
+        if self.alarm_controller:
+            self.alarm_controller.start(self.threads)
+
         def create_callback(sensor_name):
             def callback(message):
                 try:
@@ -153,36 +172,89 @@ class SmartHomeTUI(App):
                     pass
             return callback
 
+        def parse_pressed_released(message):
+            text = str(message).lower()
+            if "released" in text or "inactive" in text:
+                return 0
+            if "pressed" in text or "active" in text:
+                return 1
+            return None
+
+        def parse_dms_button(message):
+            text = str(message)
+            if "Button pressed:" in text:
+                return text.split("Button pressed:", 1)[1].strip()
+            text = text.strip()
+            return text[:1] if text else None
+
         if 'DS1' in self.settings:
-            callback = create_callback("DS1")
+            base_callback = create_callback("DS1")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller:
+                    state = parse_pressed_released(message)
+                    if state is not None:
+                        self.alarm_controller.handle_ds("DS1", state)
             run_ds1(self.settings['DS1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DUS1' in self.settings:
-            callback = create_callback("DUS1")
+            base_callback = create_callback("DUS1")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller and isinstance(message, (int, float)):
+                    self.alarm_controller.handle_dus("DUS1", message)
             run_dus1(self.settings['DUS1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DPIR1' in self.settings:
-            callback = create_callback("DPIR1")
+            base_callback = create_callback("DPIR1")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller and "motion" in str(message).lower():
+                    self.alarm_controller.handle_pir("DPIR1")
             run_dpir1(self.settings['DPIR1'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DMS' in self.settings:
-            callback = create_callback("DMS")
+            base_callback = create_callback("DMS")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller:
+                    key = parse_dms_button(message)
+                    if key:
+                        self.alarm_controller.handle_dms_key(key)
             run_dms(self.settings['DMS'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DS2' in self.settings:
-            callback = create_callback("DS2")
+            base_callback = create_callback("DS2")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller:
+                    state = parse_pressed_released(message)
+                    if state is not None:
+                        self.alarm_controller.handle_ds("DS2", state)
             run_ds2(self.settings['DS2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DUS2' in self.settings:
-            callback = create_callback("DUS2")
+            base_callback = create_callback("DUS2")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller and isinstance(message, (int, float)):
+                    self.alarm_controller.handle_dus("DUS2", message)
             run_dus2(self.settings['DUS2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DPIR2' in self.settings:
-            callback = create_callback("DPIR2")
+            base_callback = create_callback("DPIR2")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller and "motion" in str(message).lower():
+                    self.alarm_controller.handle_pir("DPIR2")
             run_dpir2(self.settings['DPIR2'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DPIR3' in self.settings:
-            callback = create_callback("DPIR3")
+            base_callback = create_callback("DPIR3")
+            def callback(message, base_callback=base_callback):
+                base_callback(message)
+                if self.alarm_controller and "motion" in str(message).lower():
+                    self.alarm_controller.handle_pir("DPIR3")
             run_dpir3(self.settings['DPIR3'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
         if 'DHT1' in self.settings:
@@ -224,6 +296,11 @@ class SmartHomeTUI(App):
                 )
             run_lcd(self.settings['LCD'], self.threads, self.stop_event, lcd_callback, self.mqtt_publisher)
 
+        if '4SD' in self.settings:
+            def foursd_callback(message):
+                self._safe_log_from_thread("4SD", message)
+            self.actuators['4SD'] = run_4sd(self.settings['4SD'], self.threads, self.stop_event, foursd_callback, self.mqtt_publisher)
+
         if 'GSG' in self.settings:
             def gsg_callback(value):
                 status = "Movement detected" if value == 1 else "No movement"
@@ -233,9 +310,10 @@ class SmartHomeTUI(App):
                     "GSG",
                     message
                 )
+                if self.alarm_controller:
+                    self.alarm_controller.handle_gsg(value)
             run_gsg(self.settings['GSG'], self.threads, self.stop_event, gsg_callback, self.mqtt_publisher)
 
-        # Initialize BRGB first (to get handler), then IR (to pass handler)
         if 'BRGB' in self.settings:
             def brgb_callback(message):
                 self.call_from_thread(
@@ -260,6 +338,17 @@ class SmartHomeTUI(App):
                 self.call_from_thread(self.status_bar.update, message)
             else:
                 self.status_bar.update(message)
+
+    def _safe_log_from_thread(self, sensor_name: str, message: str):
+        try:
+            if self.stop_event.is_set() or self.sensor_log is None:
+                return
+            if threading.current_thread() is threading.main_thread():
+                self.sensor_log.add_sensor_data(sensor_name, str(message))
+            else:
+                self.call_from_thread(self.sensor_log.add_sensor_data, sensor_name, str(message))
+        except Exception:
+            pass
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         command = event.value.strip()
@@ -291,6 +380,8 @@ Commands:
   ir <0-9>            - Simulate IR button press (controls BRGB)
                        0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE,
                        5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE
+  4sd status|set <s>|start|stop|add [s]|btn|blink - Kitchen timer / display
+  alarm status|arm|disarm|trigger [reason] - Security alarm control
   sensors             - Show sensor status
   actuators           - Show actuator status
   help                - Show this help
@@ -388,9 +479,81 @@ Commands:
             except Exception as e:
                 self._update_status(f"Error: {e}")
 
+        elif cmd in ('4sd', 'timer'):
+            if '4SD' not in self.actuators:
+                self._update_status("Error: 4SD timer/display not configured")
+                return
+            if len(parts) < 2:
+                self._update_status("Usage: 4sd status|set <seconds>|start|stop|add [seconds]|btn|blink")
+                return
+
+            action = parts[1]
+            timer = self.actuators['4SD']
+            try:
+                if action == 'status':
+                    state = timer['get_state']()
+                    self.sensor_log.add_sensor_data("SYSTEM", f"4SD state: {state}")
+                    self._update_status(
+                        f"4SD remaining={state['remaining_seconds']}s running={state['running']} blinking={state['expired_blinking']}"
+                    )
+                elif action == 'set':
+                    seconds = int(parts[2])
+                    timer['set_duration'](seconds)
+                    self._update_status(f"4SD timer set to {seconds}s")
+                elif action == 'start':
+                    timer['start']()
+                    self._update_status("4SD timer started")
+                elif action == 'stop':
+                    timer['stop']()
+                    self._update_status("4SD timer stopped")
+                elif action == 'add':
+                    seconds = int(parts[2]) if len(parts) > 2 else None
+                    timer['add_seconds'](seconds)
+                    self._update_status("4SD timer updated")
+                elif action == 'btn':
+                    timer['button_press']()
+                    self._update_status("4SD BTN press handled")
+                elif action == 'blink':
+                    timer['trigger_expired_blink']()
+                    self._update_status("4SD blink test started")
+                else:
+                    self._update_status("Usage: 4sd status|set <seconds>|start|stop|add [seconds]|btn|blink")
+            except (ValueError, IndexError):
+                self._update_status("Error: Invalid 4SD command arguments")
+            except Exception as e:
+                self._update_status(f"4SD error: {e}")
+
+        elif cmd == 'alarm':
+            if not self.alarm_controller:
+                self._update_status("Error: ALARM controller not configured")
+                return
+            if len(parts) < 2:
+                self._update_status("Usage: alarm status|arm|disarm|trigger [reason]")
+                return
+            action = parts[1]
+            if action == 'status':
+                state = self.alarm_controller.get_state()
+                self.sensor_log.add_sensor_data("SYSTEM", f"ALARM state: {state}")
+                self._update_status(
+                    f"ALARM active={state['alarm_active']} armed={state['security_armed']} people={state['person_count']}"
+                )
+            elif action == 'arm':
+                self.alarm_controller.arm()
+                self._update_status("Alarm arming started")
+            elif action == 'disarm':
+                self.alarm_controller.disarm()
+                self._update_status("Alarm disarmed")
+            elif action == 'trigger':
+                original_parts = command.split()
+                reason = " ".join(original_parts[2:]) if len(original_parts) > 2 else "Manual console trigger"
+                self.alarm_controller.trigger_alarm(reason)
+                self._update_status("Alarm triggered")
+            else:
+                self._update_status("Usage: alarm status|arm|disarm|trigger [reason]")
+
         elif cmd == 'sensors':
             info = "\nSensor Status:\n"
-            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS', 'DHT1', 'DHT2', 'DHT3']
+            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS', 'DHT1', 'DHT2', 'DHT3', 'GSG', 'IR']
             for sensor in sensors:
                 if sensor in self.settings:
                     simulated = "Simulated" if self.settings[sensor]['simulated'] else "Real"
@@ -401,7 +564,7 @@ Commands:
 
         elif cmd == 'actuators':
             info = "\nActuator Status:\n"
-            actuators = ['DL', 'DB']
+            actuators = ['DL', 'DB', '4SD']
             for actuator in actuators:
                 if actuator in self.actuators:
                     simulated = "Simulated" if self.actuators[actuator]['simulated'] else "Real"
@@ -409,10 +572,16 @@ Commands:
                         state = self.actuators[actuator]['get_state']()
                         status = "ON" if state else "OFF"
                         info += f"  {actuator}: {simulated} - Status: {status}\n"
+                    elif actuator == '4SD':
+                        state = self.actuators[actuator]['get_state']()
+                        info += f"  {actuator}: {simulated} - Remaining: {state['remaining_seconds']}s, Running: {state['running']}, Blinking: {state['expired_blinking']}\n"
                     else:
                         info += f"  {actuator}: {simulated} - Ready\n"
                 else:
                     info += f"  {actuator}: Not configured\n"
+            if self.alarm_controller:
+                state = self.alarm_controller.get_state()
+                info += f"  ALARM: {'Simulated' if state['simulated'] else 'Real'} - Active: {state['alarm_active']}, Armed: {state['security_armed']}, People: {state['person_count']}\n"
             self.sensor_log.write(info.strip())
 
         else:
