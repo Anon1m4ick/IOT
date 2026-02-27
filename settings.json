@@ -26,7 +26,9 @@
             "DHT3_TEMPERATURE": "sensors/dht3_temperature",
             "GSG": "sensors/gsg",
             "IR": "sensors/ir",
-            "BRGB": "sensors/brgb"
+            "BRGB": "sensors/brgb",
+            "4SD": "sensors/4sd",
+            "ALARM": "sensors/alarm"
         },
         "batch_size": 10,
         "batch_interval_seconds": 5
@@ -34,7 +36,7 @@
     
     "influxdb": {
         "url": "http://localhost:8086",
-        "token": "-JPLM8goE7bd5FNnXgE8swchkWgXkLzkAkrzLcrxjaoHYtoso5v3FOtcjuT02ZDWTB0nwCWyA1bpOL9s_ihq3A==",
+        "token": "9rUKkAEYL0NDb6iimF4ahGShwkqyMPHbR_KyHU0uj2DALRKHD-842QqJnZWD4Ay7IqG0CS_ZPw4b1_DW6O5aIw==",
         "org": "FTN",
         "bucket": "NTP"
     },
@@ -90,6 +92,32 @@
     "DB": {
         "simulated": true,
         "pin": 27
+    },
+
+    "4SD": {
+        "simulated": true,
+        "segment_pins": [11, 4, 23, 8, 7, 10, 18, 25],
+        "digit_pins": [22, 27, 17, 24],
+        "refresh_delay_seconds": 0.001,
+        "tick_interval": 0.1,
+        "blink_interval": 0.5,
+        "default_duration_seconds": 60,
+        "button_add_seconds": 30
+    },
+
+    "ALARM": {
+        "simulated": true,
+        "pin_code": "1234",
+        "arming_delay_seconds": 10,
+        "ds_open_timeout_seconds": 5,
+        "dl_motion_seconds": 10,
+        "dus_history_seconds": 5,
+        "siren_frequency_hz": 1000,
+        "siren_pulse_duration_seconds": 0.5,
+        "siren_pause_seconds": 0.5,
+        "pir_no_person_triggers_alarm": true,
+        "dpir1_entry_on_increasing": true,
+        "dpir2_entry_on_increasing": false
     },
 
     "DHT1": {
