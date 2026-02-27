@@ -26,6 +26,7 @@ from components.dl import run_dl
 from components.db import run_db
 from components.foursd import run_4sd
 from components.camera import run_camera
+from components.btn import run_btn
 from mqtt_publisher import MQTTPublisher
 from alarm_controller import AlarmController
 
@@ -310,6 +311,12 @@ class SmartHomeTUI(App):
             def foursd_callback(message):
                 self._safe_log_from_thread("4SD", message)
             self.actuators['4SD'] = run_4sd(self.settings['4SD'], self.threads, self.stop_event, foursd_callback, self.mqtt_publisher)
+
+        if 'BTN' in self.settings:
+            def btn_callback():
+                if '4SD' in self.actuators and self.actuators['4SD'].get('button_press'):
+                    self.actuators['4SD']['button_press']()
+            run_btn(self.settings['BTN'], self.threads, self.stop_event, callback=btn_callback)
 
         if 'GSG' in self.settings:
             def gsg_callback(value):

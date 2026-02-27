@@ -29,7 +29,7 @@ class DMS:
         if not GPIO_AVAILABLE:
             raise RuntimeError("RPi.GPIO is not available. This code must run on a Raspberry Pi.")
         
-        # Default pins from user's code
+        # Default pins
         self.rows = rows if rows is not None else [25, 8, 7, 1]
         self.cols = cols if cols is not None else [12, 16, 20, 21]
         
