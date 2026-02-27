@@ -163,5 +163,13 @@
         "red_pin": 12,
         "green_pin": 13,
         "blue_pin": 19
+    },
+
+    "CAMERA": {
+        "simulated": false,
+        "auto_start": false,
+        "port": 8080,
+        "stream_url": "http://localhost:8080/?action=stream",
+        "mjpg_command": "mjpg_streamer -i \"input_uvc.so\" -o \"output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www\""
     }
 }

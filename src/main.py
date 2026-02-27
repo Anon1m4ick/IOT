@@ -25,6 +25,7 @@ from components.brgb import run_brgb
 from components.dl import run_dl
 from components.db import run_db
 from components.foursd import run_4sd
+from components.camera import run_camera
 from components.btn import run_btn
 from mqtt_publisher import MQTTPublisher
 from alarm_controller import AlarmController
@@ -55,6 +56,7 @@ class SensorLog(RichLog):
             'IR': 'magenta',
             'BRGB': 'cyan',
             '4SD': 'green',
+            'CAMERA': 'cyan',
             'ALARM': 'red',
             'SYSTEM': 'green'
         }
@@ -99,14 +101,14 @@ class SmartHomeTUI(App):
             with Vertical(id="command-panel"):
                 yield Static("Commands", classes="panel-title")
                 yield Static(
-                    "Commands: dl ... | db ... | ir <0-9> | 4sd ... | alarm ... | sensors | actuators | help",
+                    "Commands: dl ... | db ... | ir <0-9> | 4sd ... | camera ... | alarm ... | sensors | actuators | help",
                     classes="help-text"
                 )
                 yield Input(
                     placeholder="Enter command (e.g., 'dl on', 'db activate 1000 2')...",
                     id="command-input"
                 )
-                yield Static("System ready. Type commands or 'help' for help.", id="status-bar")
+                yield Static(f"System ready. Type commands or 'help' for help.", id="status-bar")
 
         yield Footer()
 
@@ -118,7 +120,7 @@ class SmartHomeTUI(App):
         self.command_input.focus()
 
         self._start_sensors()
-        self._update_status("System ready. Type commands or 'help' for help.")
+        self._update_status(f"System ready. Type commands or 'help' for help.")
         print("[Main] Sensors started, TUI is ready")
 
     def _init_actuators(self):
@@ -127,6 +129,14 @@ class SmartHomeTUI(App):
 
         if 'DB' in self.settings:
             self.actuators['DB'] = run_db(self.settings['DB'])
+
+        if 'CAMERA' in self.settings:
+            self.actuators['CAMERA'] = run_camera(
+                self.settings['CAMERA'],
+                self.threads,
+                self.stop_event,
+                callback=lambda message: self._safe_log_from_thread("CAMERA", message),
+            )
 
     def _init_alarm_controller(self):
         if 'ALARM' not in self.settings:
@@ -388,6 +398,7 @@ Commands:
                        0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE,
                        5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE
   4sd status|set <s>|start|stop|add [s]|btn|blink - Kitchen timer / display
+  camera status|start|stop|url - Camera stream control
   alarm status|arm|disarm|trigger [reason] - Security alarm control
   sensors             - Show sensor status
   actuators           - Show actuator status
@@ -530,6 +541,40 @@ Commands:
             except Exception as e:
                 self._update_status(f"4SD error: {e}")
 
+        elif cmd == 'camera':
+            if 'CAMERA' not in self.actuators:
+                self._update_status("Error: CAMERA not configured")
+                return
+            if len(parts) < 2:
+                self._update_status("Usage: camera status|start|stop|url")
+                return
+
+            action = parts[1]
+            camera = self.actuators['CAMERA']
+            try:
+                if action == 'status':
+                    state = camera['get_state']()
+                    self.sensor_log.add_sensor_data("SYSTEM", f"CAMERA state: {state}")
+                    self._update_status(
+                        f"CAMERA running={state['running']} simulated={state['simulated']} url={state['stream_url']}"
+                    )
+                elif action == 'start':
+                    camera['start']()
+                    state = camera['get_state']()
+                    self._update_status(f"CAMERA start requested (running={state['running']})")
+                elif action == 'stop':
+                    camera['stop']()
+                    state = camera['get_state']()
+                    self._update_status(f"CAMERA stop requested (running={state['running']})")
+                elif action == 'url':
+                    state = camera['get_state']()
+                    self.sensor_log.add_sensor_data("SYSTEM", f"CAMERA URL: {state['stream_url']}")
+                    self._update_status(f"CAMERA URL: {state['stream_url']}")
+                else:
+                    self._update_status("Usage: camera status|start|stop|url")
+            except Exception as e:
+                self._update_status(f"CAMERA error: {e}")
+
         elif cmd == 'alarm':
             if not self.alarm_controller:
                 self._update_status("Error: ALARM controller not configured")
@@ -571,7 +616,7 @@ Commands:
 
         elif cmd == 'actuators':
             info = "\nActuator Status:\n"
-            actuators = ['DL', 'DB', '4SD']
+            actuators = ['DL', 'DB', '4SD', 'CAMERA']
             for actuator in actuators:
                 if actuator in self.actuators:
                     simulated = "Simulated" if self.actuators[actuator]['simulated'] else "Real"
@@ -582,6 +627,9 @@ Commands:
                     elif actuator == '4SD':
                         state = self.actuators[actuator]['get_state']()
                         info += f"  {actuator}: {simulated} - Remaining: {state['remaining_seconds']}s, Running: {state['running']}, Blinking: {state['expired_blinking']}\n"
+                    elif actuator == 'CAMERA':
+                        state = self.actuators[actuator]['get_state']()
+                        info += f"  {actuator}: {simulated} - Running: {state['running']}, URL: {state['stream_url']}\n"
                     else:
                         info += f"  {actuator}: {simulated} - Ready\n"
                 else:

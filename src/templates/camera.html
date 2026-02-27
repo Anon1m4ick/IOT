@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IoT Camera Stream</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #0f172a; color: #e2e8f0; }
+    .wrap { max-width: 1100px; margin: 20px auto; padding: 0 12px; }
+    h1 { margin: 0 0 8px; font-size: 1.4rem; }
+    p { margin: 0 0 12px; color: #94a3b8; }
+    img { width: 100%; border-radius: 10px; border: 1px solid #334155; background: #020617; }
+    code { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>USB Camera Stream</h1>
+    <p>Source: <code>{{ stream_url }}</code></p>
+    <img src="{{ stream_url }}" alt="Camera stream" />
+  </div>
+</body>
+</html>
