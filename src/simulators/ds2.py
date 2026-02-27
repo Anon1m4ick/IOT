@@ -3,11 +3,17 @@ import random
 
 
 def generate_values(initial_value=0):
+    """Bias toward closed (0): door rarely opens and closes again quickly (< 5s)."""
     state = initial_value
     while True:
-        time.sleep(random.uniform(0.5, 3))
-        if random.random() < 0.5:
-            state = 1 - state
+        if state == 1:
+            time.sleep(random.uniform(0.4, 1.5))  # short "open" time
+            if random.random() < 0.85:
+                state = 0
+        else:
+            time.sleep(random.uniform(2.0, 5.0))  # longer intervals between "opens"
+            if random.random() < 0.12:
+                state = 1
         yield int(state)
 
 def run_ds2_simulator(callback, stop_event):

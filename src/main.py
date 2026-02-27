@@ -3,7 +3,7 @@ import sys
 import time
 import os
 from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical
+from textual.containers import Container, Vertical, Horizontal
 from textual.widgets import Header, Footer, Input, RichLog, Static
 from textual.binding import Binding
 from settings import load_settings
@@ -29,6 +29,20 @@ from components.camera import run_camera
 from components.btn import run_btn
 from mqtt_publisher import MQTTPublisher
 from alarm_controller import AlarmController
+
+# Which Pi each sensor/actuator belongs to (for 3-panel routing)
+SENSOR_TO_PI = {
+    "DS1": "PI1", "DL": "PI1", "DUS1": "PI1", "DB": "PI1", "DPIR1": "PI1", "DMS": "PI1", "CAMERA": "PI1",
+    "DS2": "PI2", "DUS2": "PI2", "DPIR2": "PI2", "4SD": "PI2", "BTN": "PI2", "DHT3": "PI2", "GSG": "PI2",
+    "DHT1": "PI3", "DHT2": "PI3", "IR": "PI3", "BRGB": "PI3", "LCD": "PI3", "DPIR3": "PI3",
+    "ALARM": "PI1", "SYSTEM": "PI1",
+}
+ACTUATOR_TO_PI = {
+    "DL": "PI1", "DB": "PI1", "CAMERA": "PI1",
+    "4SD": "PI2", "BTN": "PI2",
+    "BRGB": "PI3", "LCD": "PI3",
+    "ALARM": "PI1",
+}
 
 
 class SensorLog(RichLog):
@@ -80,6 +94,7 @@ class SmartHomeTUI(App):
         self.stop_event = threading.Event()
         self.actuators = {}
         self.sensor_log = None
+        self.sensor_logs = {}  # PI1, PI2, PI3 -> SensorLog
         self.status_bar = None
         self.command_input = None
         self.mqtt_publisher = None
@@ -94,27 +109,38 @@ class SmartHomeTUI(App):
         yield Header(show_clock=True)
 
         with Container(id="main-container"):
-            with Vertical(id="sensor-panel"):
-                yield Static("Sensor Data Log", classes="panel-title")
-                yield SensorLog(id="sensor-log", markup=True, wrap=True, auto_scroll=True)
+            with Horizontal(id="panels-row"):
+                with Vertical(id="panel-pi1", classes="pi-panel"):
+                    yield Static("PI1 — Door / Security", classes="panel-title")
+                    yield SensorLog(id="sensor-log-pi1", markup=True, wrap=True, auto_scroll=True)
+                with Vertical(id="panel-pi2", classes="pi-panel"):
+                    yield Static("PI2 — Kitchen / Hall", classes="panel-title")
+                    yield SensorLog(id="sensor-log-pi2", markup=True, wrap=True, auto_scroll=True)
+                with Vertical(id="panel-pi3", classes="pi-panel"):
+                    yield Static("PI3 — Bedroom / Living", classes="panel-title")
+                    yield SensorLog(id="sensor-log-pi3", markup=True, wrap=True, auto_scroll=True)
 
             with Vertical(id="command-panel"):
                 yield Static("Commands", classes="panel-title")
                 yield Static(
-                    "Commands: dl ... | db ... | ir <0-9> | 4sd ... | camera ... | alarm ... | sensors | actuators | help",
+                    "Use prefix: pi1 <cmd> | pi2 <cmd> | pi3 <cmd>  e.g. pi1 dl on, pi2 4sd start, pi3 ir 1",
                     classes="help-text"
                 )
                 yield Input(
-                    placeholder="Enter command (e.g., 'dl on', 'db activate 1000 2')...",
+                    placeholder="pi1 dl on | pi2 4sd start | pi3 ir 1 ...",
                     id="command-input"
                 )
-                yield Static(f"System ready. Type commands or 'help' for help.", id="status-bar")
+                yield Static("System ready. Type commands or 'help' for help.", id="status-bar")
 
         yield Footer()
 
     def on_mount(self) -> None:
         print("[Main] TUI mounted - application is running")
-        self.sensor_log = self.query_one("#sensor-log", SensorLog)
+        self.sensor_log_pi1 = self.query_one("#sensor-log-pi1", SensorLog)
+        self.sensor_log_pi2 = self.query_one("#sensor-log-pi2", SensorLog)
+        self.sensor_log_pi3 = self.query_one("#sensor-log-pi3", SensorLog)
+        self.sensor_logs = {"PI1": self.sensor_log_pi1, "PI2": self.sensor_log_pi2, "PI3": self.sensor_log_pi3}
+        self.sensor_log = self.sensor_log_pi1  # fallback for any code that still uses it
         self.status_bar = self.query_one("#status-bar", Static)
         self.command_input = self.query_one("#command-input", Input)
         self.command_input.focus()
@@ -172,13 +198,9 @@ class SmartHomeTUI(App):
         def create_callback(sensor_name):
             def callback(message):
                 try:
-                    if self.stop_event.is_set() or self.sensor_log is None:
+                    if self.stop_event.is_set():
                         return
-                    self.call_from_thread(
-                        self.sensor_log.add_sensor_data,
-                        sensor_name,
-                        str(message)
-                    )
+                    self._safe_log_from_thread(sensor_name, str(message))
                 except (RuntimeError, AttributeError, Exception):
                     pass
             return callback
@@ -268,44 +290,28 @@ class SmartHomeTUI(App):
                     self.alarm_controller.handle_pir("DPIR3")
             run_dpir3(self.settings['DPIR3'], self.threads, self.stop_event, callback, self.mqtt_publisher)
 
-        if 'DHT1' in self.settings:
+        if "DHT1" in self.settings:
             def dht1_callback(humidity, temperature, code):
                 message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "DHT1",
-                    message
-                )
-            run_dht1(self.settings['DHT1'], self.threads, self.stop_event, dht1_callback, self.mqtt_publisher)
+                self._safe_log_from_thread("DHT1", message)
+            run_dht1(self.settings["DHT1"], self.threads, self.stop_event, dht1_callback, self.mqtt_publisher)
 
-        if 'DHT2' in self.settings:
+        if "DHT2" in self.settings:
             def dht2_callback(humidity, temperature, code):
                 message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "DHT2",
-                    message
-                )
-            run_dht2(self.settings['DHT2'], self.threads, self.stop_event, dht2_callback, self.mqtt_publisher)
+                self._safe_log_from_thread("DHT2", message)
+            run_dht2(self.settings["DHT2"], self.threads, self.stop_event, dht2_callback, self.mqtt_publisher)
 
-        if 'DHT3' in self.settings:
+        if "DHT3" in self.settings:
             def dht3_callback(humidity, temperature, code):
                 message = f"Humidity: {humidity}%, Temperature: {temperature}°C, Code: {code}"
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "DHT3",
-                    message
-                )
-            run_dht3(self.settings['DHT3'], self.threads, self.stop_event, dht3_callback, self.mqtt_publisher)
+                self._safe_log_from_thread("DHT3", message)
+            run_dht3(self.settings["DHT3"], self.threads, self.stop_event, dht3_callback, self.mqtt_publisher)
 
-        if 'LCD' in self.settings:
+        if "LCD" in self.settings:
             def lcd_callback(message):
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "LCD",
-                    message
-                )
-            run_lcd(self.settings['LCD'], self.threads, self.stop_event, lcd_callback, self.mqtt_publisher)
+                self._safe_log_from_thread("LCD", message)
+            run_lcd(self.settings["LCD"], self.threads, self.stop_event, lcd_callback, self.mqtt_publisher)
 
         if '4SD' in self.settings:
             def foursd_callback(message):
@@ -318,36 +324,24 @@ class SmartHomeTUI(App):
                     self.actuators['4SD']['button_press']()
             run_btn(self.settings['BTN'], self.threads, self.stop_event, callback=btn_callback)
 
-        if 'GSG' in self.settings:
+        if "GSG" in self.settings:
             def gsg_callback(value):
                 status = "Movement detected" if value == 1 else "No movement"
                 message = f"{status} ({value})"
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "GSG",
-                    message
-                )
+                self._safe_log_from_thread("GSG", message)
                 if self.alarm_controller:
                     self.alarm_controller.handle_gsg(value)
-            run_gsg(self.settings['GSG'], self.threads, self.stop_event, gsg_callback, self.mqtt_publisher)
+            run_gsg(self.settings["GSG"], self.threads, self.stop_event, gsg_callback, self.mqtt_publisher)
 
-        if 'BRGB' in self.settings:
+        if "BRGB" in self.settings:
             def brgb_callback(message):
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "BRGB",
-                    message
-                )
-            self.brgb_handler = run_brgb(self.settings['BRGB'], self.threads, self.stop_event, brgb_callback, self.mqtt_publisher)
-        
-        if 'IR' in self.settings:
+                self._safe_log_from_thread("BRGB", message)
+            self.brgb_handler = run_brgb(self.settings["BRGB"], self.threads, self.stop_event, brgb_callback, self.mqtt_publisher)
+
+        if "IR" in self.settings:
             def ir_callback(button):
-                self.call_from_thread(
-                    self.sensor_log.add_sensor_data,
-                    "IR",
-                    f"Button pressed: {button}"
-                )
-            run_ir(self.settings['IR'], self.threads, self.stop_event, ir_callback, self.mqtt_publisher, self.brgb_handler)
+                self._safe_log_from_thread("IR", f"Button pressed: {button}")
+            run_ir(self.settings["IR"], self.threads, self.stop_event, ir_callback, self.mqtt_publisher, self.brgb_handler)
 
     def _update_status(self, message: str, from_thread: bool = False):
         if self.status_bar:
@@ -356,16 +350,41 @@ class SmartHomeTUI(App):
             else:
                 self.status_bar.update(message)
 
+    def _get_log_for_sensor(self, sensor_name: str):
+        """Return the SensorLog widget for the Pi that owns this sensor/actor."""
+        pi = SENSOR_TO_PI.get(sensor_name, "PI1")
+        return self.sensor_logs.get(pi)
+
     def _safe_log_from_thread(self, sensor_name: str, message: str):
         try:
-            if self.stop_event.is_set() or self.sensor_log is None:
+            if self.stop_event.is_set():
+                return
+            log = self._get_log_for_sensor(sensor_name)
+            if log is None:
                 return
             if threading.current_thread() is threading.main_thread():
-                self.sensor_log.add_sensor_data(sensor_name, str(message))
+                log.add_sensor_data(sensor_name, str(message))
             else:
-                self.call_from_thread(self.sensor_log.add_sensor_data, sensor_name, str(message))
+                self.call_from_thread(log.add_sensor_data, sensor_name, str(message))
         except Exception:
             pass
+
+    def _log_to_pi(self, pi: str, message: str, sensor_name: str = "SYSTEM"):
+        """Write message to the log panel for the given Pi."""
+        log = self.sensor_logs.get(pi) if pi else None
+        if log is None:
+            return
+        if threading.current_thread() is threading.main_thread():
+            log.add_sensor_data(sensor_name, message)
+        else:
+            self.call_from_thread(log.add_sensor_data, sensor_name, message)
+
+    def _write_to_pi(self, pi: str, text: str):
+        """Plain write (e.g. help text) to the given Pi's panel."""
+        log = self.sensor_logs.get(pi) if pi else None
+        if log is None:
+            return
+        log.write(text)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         command = event.value.strip()
@@ -377,72 +396,86 @@ class SmartHomeTUI(App):
         self._handle_command(command)
 
     def _handle_command(self, command: str):
-        parts = command.lower().split()
-        if not parts:
+        raw_parts = command.split()
+        if not raw_parts:
             return
 
-        cmd = parts[0]
+        target_pi = None
+        if raw_parts[0].lower() in ("pi1", "pi2", "pi3"):
+            target_pi = raw_parts[0].upper()
+            parts = raw_parts[1:]
+        else:
+            parts = raw_parts
 
-        if cmd == 'quit' or cmd == 'exit':
+        if not parts:
+            self._update_status("Usage: pi1 <cmd> | pi2 <cmd> | pi3 <cmd>")
+            return
+
+        cmd = parts[0].lower()
+
+        if cmd == "quit" or cmd == "exit":
             self._update_status("Shutting down...")
             self.stop_event.set()
             self.exit()
             return
 
-        elif cmd == 'help':
+        elif cmd == "help":
             help_text = """
-Commands:
-  dl on/off/status    - Control Door Light
-  db activate [freq] [dur] - Activate Buzzer (default: 1000Hz, 1s)
-  ir <0-9>            - Simulate IR button press (controls BRGB)
-                       0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE,
-                       5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE
-  4sd status|set <s>|start|stop|add [s]|btn|blink - Kitchen timer / display
-  camera status|start|stop|url - Camera stream control
-  alarm status|arm|disarm|trigger [reason] - Security alarm control
-  sensors             - Show sensor status
-  actuators           - Show actuator status
-  help                - Show this help
-  quit/exit           - Exit application
+Use prefix pi1 | pi2 | pi3 before each command.
+  pi1 dl on/off/status       - Door Light (PI1)
+  pi1 db activate [freq][dur]- Buzzer (PI1)
+  pi1 camera status|start|stop|url
+  pi1 alarm status|arm|disarm|trigger [reason]
+  pi1 dms pin <4 digits>     - Simulate DMS keypad PIN (e.g. pi1 dms pin 1234)
+  pi2 4sd status|set <s>|start|stop|add [s]|btn|blink - Kitchen timer (PI2)
+  pi3 ir <0-9>               - IR/BRGB (PI3): 0=OFF,1=WHITE,2=RED,3=GREEN,4=BLUE,5=YELLOW,6=PURPLE,7=LIGHT_BLUE,8=OFF,9=WHITE
+  sensors | actuators        - Show status (no prefix)
+  help | quit/exit           - No prefix
             """
-            self.sensor_log.write(help_text.strip())
+            self._write_to_pi("PI1", help_text.strip())
 
-        elif cmd == 'dl':
+        elif cmd == "dl":
+            if target_pi != "PI1":
+                self._update_status("DL is on PI1. Use: pi1 dl <on|off|status>")
+                return
             if len(parts) < 2:
-                self._update_status("Usage: dl <on|off|status>")
+                self._update_status("Usage: pi1 dl <on|off|status>")
                 return
 
             action = parts[1]
-            if 'DL' not in self.actuators:
+            if "DL" not in self.actuators:
                 self._update_status("Error: Door Light (DL) not configured")
                 return
 
-            if action == 'on':
-                self.actuators['DL']['set_state'](1)
+            if action == "on":
+                self.actuators["DL"]["set_state"](1)
                 self._update_status("Door Light turned ON")
-                self.sensor_log.add_sensor_data("SYSTEM", "Door Light turned ON")
-            elif action == 'off':
-                self.actuators['DL']['set_state'](0)
+                self._log_to_pi("PI1", "Door Light turned ON")
+            elif action == "off":
+                self.actuators["DL"]["set_state"](0)
                 self._update_status("Door Light turned OFF")
-                self.sensor_log.add_sensor_data("SYSTEM", "Door Light turned OFF")
-            elif action == 'status':
-                state = self.actuators['DL']['get_state']()
+                self._log_to_pi("PI1", "Door Light turned OFF")
+            elif action == "status":
+                state = self.actuators["DL"]["get_state"]()
                 status = "ON" if state else "OFF"
                 self._update_status(f"Door Light status: {status}")
             else:
-                self._update_status("Usage: dl <on|off|status>")
+                self._update_status("Usage: pi1 dl <on|off|status>")
 
-        elif cmd == 'db':
+        elif cmd == "db":
+            if target_pi != "PI1":
+                self._update_status("DB is on PI1. Use: pi1 db activate [freq] [dur]")
+                return
             if len(parts) < 2:
-                self._update_status("Usage: db activate [frequency] [duration]")
+                self._update_status("Usage: pi1 db activate [frequency] [duration]")
                 return
 
             action = parts[1]
-            if 'DB' not in self.actuators:
+            if "DB" not in self.actuators:
                 self._update_status("Error: Door Buzzer (DB) not configured")
                 return
 
-            if action == 'activate':
+            if action == "activate":
                 try:
                     frequency = int(parts[2]) if len(parts) > 2 else 1000
                     duration = int(parts[3]) if len(parts) > 3 else 1
@@ -451,196 +484,221 @@ Commands:
                     return
 
                 def buzzer_thread():
-                    self.actuators['DB']['activate'](frequency, duration)
-                    self.call_from_thread(
-                        self.sensor_log.add_sensor_data,
-                        "SYSTEM",
-                        f"Buzzer stopped ({frequency}Hz, {duration}s)"
-                    )
+                    self.actuators["DB"]["activate"](frequency, duration)
+                    self._log_to_pi("PI1", f"Buzzer stopped ({frequency}Hz, {duration}s)")
 
                 thread = threading.Thread(target=buzzer_thread)
                 thread.start()
                 self._update_status(f"Buzzer activation started: {frequency}Hz for {duration}s")
-                self.sensor_log.add_sensor_data("SYSTEM", f"Buzzer activated: {frequency}Hz for {duration}s")
+                self._log_to_pi("PI1", f"Buzzer activated: {frequency}Hz for {duration}s")
             else:
-                self._update_status("Usage: db activate [frequency] [duration]")
+                self._update_status("Usage: pi1 db activate [frequency] [duration]")
 
-        elif cmd == 'ir':
-            if len(parts) < 2:
-                self._update_status("Usage: ir <0-9> (0=OFF, 1=WHITE, 2=RED, 3=GREEN, 4=BLUE, 5=YELLOW, 6=PURPLE, 7=LIGHT_BLUE, 8=OFF, 9=WHITE)")
+        elif cmd == "dms":
+            if target_pi != "PI1":
+                self._update_status("DMS is on PI1. Use: pi1 dms pin <4 digits>")
                 return
-            
+            if not self.alarm_controller:
+                self._update_status("Error: ALARM controller not configured")
+                return
+            if len(parts) < 3 or parts[1].lower() != "pin":
+                self._update_status("Usage: pi1 dms pin <4 digits>  e.g. pi1 dms pin 1234")
+                return
+            pin_str = parts[2].strip()
+            if not pin_str.isdigit() or len(pin_str) != 4:
+                self._update_status("PIN must be exactly 4 digits")
+                return
+            for char in pin_str:
+                self.alarm_controller.handle_dms_key(char)
+            self._log_to_pi("PI1", f"DMS PIN entered via command: ****")
+            self._update_status("DMS PIN entered (4 digits)")
+
+        elif cmd == "ir":
+            if target_pi != "PI3":
+                self._update_status("IR/BRGB is on PI3. Use: pi3 ir <0-9>")
+                return
+            if len(parts) < 2:
+                self._update_status("Usage: pi3 ir <0-9> (0=OFF,1=WHITE,2=RED,...)")
+                return
+
             if not self.brgb_handler:
                 self._update_status("Error: BRGB not configured")
                 return
-            
+
             try:
                 button_number = parts[1]
-                if button_number not in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+                if button_number not in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
                     self._update_status("Error: Button must be 0-9")
                     return
-                
-                # Simulate IR button press
+
                 self.brgb_handler(button_number)
-                
-                # Send to MQTT if publisher is available
                 if self.mqtt_publisher:
-                    self.mqtt_publisher.add_sensor_data("IR", button_number, self.settings.get('IR', {}).get('simulated', True))
-                
+                    self.mqtt_publisher.add_sensor_data("IR", button_number, self.settings.get("IR", {}).get("simulated", True))
                 color_map = {
-                    '0': 'OFF', '1': 'WHITE', '2': 'RED', '3': 'GREEN', '4': 'BLUE',
-                    '5': 'YELLOW', '6': 'PURPLE', '7': 'LIGHT_BLUE', '8': 'OFF', '9': 'WHITE'
+                    "0": "OFF", "1": "WHITE", "2": "RED", "3": "GREEN", "4": "BLUE",
+                    "5": "YELLOW", "6": "PURPLE", "7": "LIGHT_BLUE", "8": "OFF", "9": "WHITE"
                 }
-                color = color_map.get(button_number, 'UNKNOWN')
+                color = color_map.get(button_number, "UNKNOWN")
                 self._update_status(f"IR button {button_number} pressed - BRGB: {color}")
-                self.sensor_log.add_sensor_data("SYSTEM", f"IR command: button {button_number} -> {color}")
+                self._log_to_pi("PI3", f"IR command: button {button_number} -> {color}")
             except Exception as e:
                 self._update_status(f"Error: {e}")
 
-        elif cmd in ('4sd', 'timer'):
-            if '4SD' not in self.actuators:
+        elif cmd in ("4sd", "timer"):
+            if target_pi != "PI2":
+                self._update_status("4SD is on PI2. Use: pi2 4sd <status|set|start|stop|add|btn|blink>")
+                return
+            if "4SD" not in self.actuators:
                 self._update_status("Error: 4SD timer/display not configured")
                 return
             if len(parts) < 2:
-                self._update_status("Usage: 4sd status|set <seconds>|start|stop|add [seconds]|btn|blink")
+                self._update_status("Usage: pi2 4sd status|set <s>|start|stop|add [s]|btn|blink")
                 return
 
             action = parts[1]
-            timer = self.actuators['4SD']
+            timer = self.actuators["4SD"]
             try:
-                if action == 'status':
-                    state = timer['get_state']()
-                    self.sensor_log.add_sensor_data("SYSTEM", f"4SD state: {state}")
+                if action == "status":
+                    state = timer["get_state"]()
+                    self._log_to_pi("PI2", f"4SD state: {state}")
                     self._update_status(
                         f"4SD remaining={state['remaining_seconds']}s running={state['running']} blinking={state['expired_blinking']}"
                     )
-                elif action == 'set':
+                elif action == "set":
                     seconds = int(parts[2])
-                    timer['set_duration'](seconds)
+                    timer["set_duration"](seconds)
                     self._update_status(f"4SD timer set to {seconds}s")
-                elif action == 'start':
-                    timer['start']()
+                elif action == "start":
+                    timer["start"]()
                     self._update_status("4SD timer started")
-                elif action == 'stop':
-                    timer['stop']()
+                elif action == "stop":
+                    timer["stop"]()
                     self._update_status("4SD timer stopped")
-                elif action == 'add':
+                elif action == "add":
                     seconds = int(parts[2]) if len(parts) > 2 else None
-                    timer['add_seconds'](seconds)
+                    timer["add_seconds"](seconds)
                     self._update_status("4SD timer updated")
-                elif action == 'btn':
-                    timer['button_press']()
+                elif action == "btn":
+                    timer["button_press"]()
                     self._update_status("4SD BTN press handled")
-                elif action == 'blink':
-                    timer['trigger_expired_blink']()
+                elif action == "blink":
+                    timer["trigger_expired_blink"]()
                     self._update_status("4SD blink test started")
                 else:
-                    self._update_status("Usage: 4sd status|set <seconds>|start|stop|add [seconds]|btn|blink")
+                    self._update_status("Usage: pi2 4sd status|set <s>|start|stop|add [s]|btn|blink")
             except (ValueError, IndexError):
                 self._update_status("Error: Invalid 4SD command arguments")
             except Exception as e:
                 self._update_status(f"4SD error: {e}")
 
-        elif cmd == 'camera':
-            if 'CAMERA' not in self.actuators:
+        elif cmd == "camera":
+            if target_pi != "PI1":
+                self._update_status("CAMERA is on PI1. Use: pi1 camera <status|start|stop|url>")
+                return
+            if "CAMERA" not in self.actuators:
                 self._update_status("Error: CAMERA not configured")
                 return
             if len(parts) < 2:
-                self._update_status("Usage: camera status|start|stop|url")
+                self._update_status("Usage: pi1 camera status|start|stop|url")
                 return
 
             action = parts[1]
-            camera = self.actuators['CAMERA']
+            camera = self.actuators["CAMERA"]
             try:
-                if action == 'status':
-                    state = camera['get_state']()
-                    self.sensor_log.add_sensor_data("SYSTEM", f"CAMERA state: {state}")
+                if action == "status":
+                    state = camera["get_state"]()
+                    self._log_to_pi("PI1", f"CAMERA state: {state}")
                     self._update_status(
                         f"CAMERA running={state['running']} simulated={state['simulated']} url={state['stream_url']}"
                     )
-                elif action == 'start':
-                    camera['start']()
-                    state = camera['get_state']()
+                elif action == "start":
+                    camera["start"]()
+                    state = camera["get_state"]()
                     self._update_status(f"CAMERA start requested (running={state['running']})")
-                elif action == 'stop':
-                    camera['stop']()
-                    state = camera['get_state']()
+                elif action == "stop":
+                    camera["stop"]()
+                    state = camera["get_state"]()
                     self._update_status(f"CAMERA stop requested (running={state['running']})")
-                elif action == 'url':
-                    state = camera['get_state']()
-                    self.sensor_log.add_sensor_data("SYSTEM", f"CAMERA URL: {state['stream_url']}")
+                elif action == "url":
+                    state = camera["get_state"]()
+                    self._log_to_pi("PI1", f"CAMERA URL: {state['stream_url']}")
                     self._update_status(f"CAMERA URL: {state['stream_url']}")
                 else:
-                    self._update_status("Usage: camera status|start|stop|url")
+                    self._update_status("Usage: pi1 camera status|start|stop|url")
             except Exception as e:
                 self._update_status(f"CAMERA error: {e}")
 
-        elif cmd == 'alarm':
+        elif cmd == "alarm":
+            if target_pi != "PI1":
+                self._update_status("ALARM is on PI1. Use: pi1 alarm <status|arm|disarm|trigger [reason]>")
+                return
             if not self.alarm_controller:
                 self._update_status("Error: ALARM controller not configured")
                 return
             if len(parts) < 2:
-                self._update_status("Usage: alarm status|arm|disarm|trigger [reason]")
+                self._update_status("Usage: pi1 alarm status|arm|disarm|trigger [reason]")
                 return
             action = parts[1]
-            if action == 'status':
+            if action == "status":
                 state = self.alarm_controller.get_state()
-                self.sensor_log.add_sensor_data("SYSTEM", f"ALARM state: {state}")
+                self._log_to_pi("PI1", f"ALARM state: {state}")
                 self._update_status(
                     f"ALARM active={state['alarm_active']} armed={state['security_armed']} people={state['person_count']}"
                 )
-            elif action == 'arm':
+            elif action == "arm":
                 self.alarm_controller.arm()
                 self._update_status("Alarm arming started")
-            elif action == 'disarm':
+            elif action == "disarm":
                 self.alarm_controller.disarm()
                 self._update_status("Alarm disarmed")
-            elif action == 'trigger':
-                original_parts = command.split()
-                reason = " ".join(original_parts[2:]) if len(original_parts) > 2 else "Manual console trigger"
+            elif action == "trigger":
+                reason = " ".join(parts[2:]) if len(parts) > 2 else "Manual console trigger"
                 self.alarm_controller.trigger_alarm(reason)
                 self._update_status("Alarm triggered")
             else:
-                self._update_status("Usage: alarm status|arm|disarm|trigger [reason]")
+                self._update_status("Usage: pi1 alarm status|arm|disarm|trigger [reason]")
 
-        elif cmd == 'sensors':
+        elif cmd == "sensors":
             info = "\nSensor Status:\n"
-            sensors = ['DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS', 'DHT1', 'DHT2', 'DHT3', 'GSG', 'IR']
+            sensors = ["DS1", "DS2", "DUS1", "DUS2", "DPIR1", "DPIR2", "DPIR3", "DMS", "DHT1", "DHT2", "DHT3", "GSG", "IR"]
             for sensor in sensors:
+                pi = SENSOR_TO_PI.get(sensor, "?")
                 if sensor in self.settings:
-                    simulated = "Simulated" if self.settings[sensor]['simulated'] else "Real"
-                    info += f"  {sensor}: {simulated} - Running\n"
+                    sim = "Simulated" if self.settings[sensor]["simulated"] else "Real"
+                    info += f"  {sensor} ({pi}): {sim} - Running\n"
                 else:
-                    info += f"  {sensor}: Not configured\n"
-            self.sensor_log.write(info.strip())
+                    info += f"  {sensor} ({pi}): Not configured\n"
+            self._write_to_pi("PI1", info.strip())
 
-        elif cmd == 'actuators':
+        elif cmd == "actuators":
             info = "\nActuator Status:\n"
-            actuators = ['DL', 'DB', '4SD', 'CAMERA']
-            for actuator in actuators:
+            for actuator in ["DL", "DB", "4SD", "CAMERA"]:
+                pi = ACTUATOR_TO_PI.get(actuator, "?")
                 if actuator in self.actuators:
-                    simulated = "Simulated" if self.actuators[actuator]['simulated'] else "Real"
-                    if actuator == 'DL':
-                        state = self.actuators[actuator]['get_state']()
-                        status = "ON" if state else "OFF"
-                        info += f"  {actuator}: {simulated} - Status: {status}\n"
-                    elif actuator == '4SD':
-                        state = self.actuators[actuator]['get_state']()
-                        info += f"  {actuator}: {simulated} - Remaining: {state['remaining_seconds']}s, Running: {state['running']}, Blinking: {state['expired_blinking']}\n"
-                    elif actuator == 'CAMERA':
-                        state = self.actuators[actuator]['get_state']()
-                        info += f"  {actuator}: {simulated} - Running: {state['running']}, URL: {state['stream_url']}\n"
+                    sim = "Simulated" if self.actuators[actuator].get("simulated", True) else "Real"
+                    if actuator == "DL":
+                        state = self.actuators[actuator]["get_state"]()
+                        info += f"  {actuator} ({pi}): {sim} - Status: {'ON' if state else 'OFF'}\n"
+                    elif actuator == "4SD":
+                        state = self.actuators[actuator]["get_state"]()
+                        info += f"  {actuator} ({pi}): {sim} - Remaining: {state['remaining_seconds']}s, Running: {state['running']}, Blinking: {state['expired_blinking']}\n"
+                    elif actuator == "CAMERA":
+                        state = self.actuators[actuator]["get_state"]()
+                        info += f"  {actuator} ({pi}): {sim} - Running: {state['running']}, URL: {state['stream_url']}\n"
                     else:
-                        info += f"  {actuator}: {simulated} - Ready\n"
+                        info += f"  {actuator} ({pi}): {sim} - Ready\n"
                 else:
-                    info += f"  {actuator}: Not configured\n"
+                    info += f"  {actuator} ({pi}): Not configured\n"
             if self.alarm_controller:
                 state = self.alarm_controller.get_state()
-                info += f"  ALARM: {'Simulated' if state['simulated'] else 'Real'} - Active: {state['alarm_active']}, Armed: {state['security_armed']}, People: {state['person_count']}\n"
-            self.sensor_log.write(info.strip())
+                info += f"  ALARM (PI1): {'Simulated' if state['simulated'] else 'Real'} - Active: {state['alarm_active']}, Armed: {state['security_armed']}, People: {state['person_count']}\n"
+            self._write_to_pi("PI1", info.strip())
 
         else:
-            self._update_status(f"Unknown command: {cmd}. Type 'help' for available commands")
+            if not target_pi:
+                self._update_status(f"Use prefix: pi1 <cmd> | pi2 <cmd> | pi3 <cmd>. Unknown: {cmd}")
+            else:
+                self._update_status(f"Unknown command: {cmd}. Type help for list.")
 
     def action_quit(self) -> None:
         self._update_status("Shutting down...")

@@ -2,10 +2,17 @@ Screen {
     background: $surface;
 }
 
-#sensor-panel {
+#panels-row {
     height: 70%;
+    width: 100%;
+}
+
+.pi-panel {
+    width: 1fr;
+    height: 100%;
     border: solid $primary;
     padding: 1;
+    min-width: 20;
 }
 
 #command-panel {
