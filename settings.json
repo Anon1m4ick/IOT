@@ -105,6 +105,11 @@
         "button_add_seconds": 30
     },
 
+    "BTN": {
+        "simulated": true,
+        "pin": 17
+    },
+
     "ALARM": {
         "simulated": true,
         "pin_code": "1234",
