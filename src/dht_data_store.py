@@ -1,7 +1,3 @@
-"""
-Shared data store for DHT sensor readings.
-Used by LCD component to access DHT1, DHT2, DHT3 data.
-"""
 import threading
 from typing import Optional, Dict
 
@@ -15,7 +11,6 @@ _lock = threading.Lock()
 
 
 def update_dht_data(dht_id: str, humidity: float, temperature: float):
-    """Update DHT sensor data in the shared store."""
     with _lock:
         _dht_data[dht_id] = {
             'humidity': humidity,
@@ -25,12 +20,10 @@ def update_dht_data(dht_id: str, humidity: float, temperature: float):
 
 
 def get_dht_data(dht_id: str) -> Optional[Dict]:
-    """Get DHT sensor data from the shared store."""
     with _lock:
         return _dht_data.get(dht_id, {}).copy()
 
 
 def get_all_dht_data() -> Dict:
-    """Get all DHT sensor data."""
     with _lock:
         return {k: v.copy() for k, v in _dht_data.items()}

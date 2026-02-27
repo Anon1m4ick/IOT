@@ -1,7 +1,3 @@
-"""
-Project Defense ALARM logic controller.
-Keeps critical sections small and uses a daemon worker thread for timed transitions.
-"""
 import threading
 import time
 from collections import deque

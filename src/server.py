@@ -11,19 +11,9 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 class MQTTInfluxDBBridge:
-    """
-    Bridge between MQTT and InfluxDB.
-    Thread-safe implementation.
-    """
     
     def __init__(self, mqtt_config: Dict[str, Any], influxdb_config: Dict[str, Any]):
-        """
-        Initialize the bridge.
-        
-        Args:
-            mqtt_config: MQTT broker configuration
-            influxdb_config: InfluxDB configuration
-        """
+
         self.mqtt_config = mqtt_config
         self.influxdb_config = influxdb_config
         
@@ -64,10 +54,7 @@ class MQTTInfluxDBBridge:
             self.connected = False
     
     def _on_message(self, client, userdata, msg):
-        """
-        Callback when MQTT message is received.
-        This runs in MQTT client's thread, so we need to be thread-safe.
-        """
+
         try:
             print(f"[Server] Received message on topic: {msg.topic}")  # Отладочный принт
             payload = json.loads(msg.payload.decode('utf-8'))
@@ -87,10 +74,7 @@ class MQTTInfluxDBBridge:
             print(f"[Server] Error processing message: {e}")
     
     def _store_in_influxdb(self, sensor_type: str, data: Dict[str, Any]):
-        """
-        Store data in InfluxDB.
-        Minimal locking - only during write operation.
-        """
+
         if not self.write_api:
             return
         
@@ -145,7 +129,7 @@ class MQTTInfluxDBBridge:
             print(f"[Server] Error storing in InfluxDB: {e}")
     
     def _convert_value(self, value: Any) -> float:
-        """Convert value to float for InfluxDB."""
+
         if isinstance(value, (int, float)):
             return float(value)
         elif isinstance(value, str):
@@ -153,16 +137,13 @@ class MQTTInfluxDBBridge:
             try:
                 return float(value)
             except ValueError:
-                # For non-numeric strings (like button presses), use hash
+                # For non-numeric strings (like button presses
                 return float(hash(value) % 10000)
         else:
             return 0.0
     
     def _convert_dms_value(self, button_char: str) -> float:
-        """
-        Convert DMS button character to numeric value for graphing.
-        Mapping: 0-9 = 0-9, A=10, B=11, C=12, D=13, *=14, #=15
-        """
+
         button_char = str(button_char).strip().upper()
         
         # Numeric buttons
@@ -182,7 +163,7 @@ class MQTTInfluxDBBridge:
         return float(button_map.get(button_char, 0))
     
     def connect_mqtt(self):
-        """Connect to MQTT broker."""
+
         if self.mqtt_client and self.connected:
             print("[Server] Already connected to MQTT broker")
             return
@@ -210,7 +191,7 @@ class MQTTInfluxDBBridge:
             print(f"[Server] Error connecting to MQTT: {e}")
     
     def connect_influxdb(self):
-        """Connect to InfluxDB."""
+
         try:
             self.influx_client = InfluxDBClient(
                 url=self.influxdb_config['url'],
@@ -260,7 +241,7 @@ def _camera_stream_url() -> str:
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint."""
+
     return jsonify({
         'status': 'ok',
         'mqtt_connected': bridge.connected if bridge else False,
@@ -271,7 +252,7 @@ def health():
 
 @app.route('/api/sensors', methods=['GET'])
 def get_sensors():
-    """Get list of available sensors."""
+
     return jsonify({
         'sensors': ['DS1', 'DUS1', 'DPIR1', 'DMS']
     })
@@ -279,15 +260,10 @@ def get_sensors():
 
 @app.route('/api/actuators/dl', methods=['POST'])
 def control_door_light():
-    """
-    Control door light actuator.
-    For Grafana integration.
-    """
+
     data = request.get_json() or {}
     state = data.get('state', 'off')
     
-    # Here you would send MQTT command to control the actuator
-    # For now, just return success
     return jsonify({
         'status': 'success',
         'actuator': 'DL',
@@ -298,10 +274,7 @@ def control_door_light():
 
 @app.route('/api/actuators/db', methods=['POST'])
 def control_door_buzzer():
-    """
-    Control door buzzer actuator.
-    For Grafana integration.
-    """
+
     data = request.get_json() or {}
     frequency = data.get('frequency', 1000)
     duration = data.get('duration', 1)
@@ -349,16 +322,7 @@ def create_app(
     influxdb_config: Dict[str, Any],
     camera_config: Optional[Dict[str, Any]] = None,
 ) -> Flask:
-    """
-    Create and configure Flask app with MQTT-InfluxDB bridge.
-    
-    Args:
-        mqtt_config: MQTT broker configuration
-        influxdb_config: InfluxDB configuration
-    
-    Returns:
-        Configured Flask app
-    """
+
     global bridge
     
     if bridge is None:
@@ -373,7 +337,7 @@ def create_app(
 
 
 def main():
-    """Main function to run the server."""
+
     import sys
     import os
     from settings import load_settings
