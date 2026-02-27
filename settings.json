@@ -36,7 +36,7 @@
     
     "influxdb": {
         "url": "http://localhost:8086",
-        "token": "KYSH54C3t2aCmUe_79qzzDU8GWRxAw1BW1J4ZFklEj-WNrQUUnxPG_0Q2eFTu_CfwOzI8Q1Q2gCuibwBm0Vt9Q==",
+        "token": "9rUKkAEYL0NDb6iimF4ahGShwkqyMPHbR_KyHU0uj2DALRKHD-842QqJnZWD4Ay7IqG0CS_ZPw4b1_DW6O5aIw==",
         "org": "FTN",
         "bucket": "NTP"
     },
@@ -114,7 +114,7 @@
         "simulated": true,
         "pin_code": "1234",
         "arming_delay_seconds": 10,
-        "ds_open_timeout_seconds": 15,
+        "ds_open_timeout_seconds": 5,
         "dl_motion_seconds": 10,
         "dus_history_seconds": 5,
         "siren_frequency_hz": 1000,

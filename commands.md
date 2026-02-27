@@ -66,7 +66,3 @@ Remote buttons:
 - **7** = LIGHT_BLUE  
 - **8** = OFF  
 - **9** = WHITE  
-
----
-
-You can also run **help** in the app to see this list.

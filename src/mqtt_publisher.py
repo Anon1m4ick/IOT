@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import threading
 import time
 import json
@@ -9,19 +7,9 @@ import paho.mqtt.client as mqtt
 
 
 class MQTTPublisher:
-    """
-    Thread-safe MQTT publisher with batch sending.
-    Uses a single daemon thread for all sensors to avoid deadlocks.
-    """
     
     def __init__(self, mqtt_config: Dict[str, Any], device_config: Dict[str, Any]):
-        """
-        Initialize MQTT publisher.
-        
-        Args:
-            mqtt_config: MQTT configuration from settings
-            device_config: Device configuration (pi_id, device_name)
-        """
+
         self.mqtt_config = mqtt_config
         self.device_config = device_config
         self.batch_size = mqtt_config.get('batch_size', 10)
@@ -33,7 +21,6 @@ class MQTTPublisher:
         # Lock for MQTT client operations (minimal locking)
         self.mqtt_lock = threading.Lock()
         
-        # MQTT client
         self.client = None
         self.connected = False
         self.connection_established = threading.Event()
@@ -43,7 +30,7 @@ class MQTTPublisher:
         self.daemon_thread = None
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
-        """Callback when MQTT client connects (вызывается из потока MQTT). paho-mqtt 2.x: reason_code == 0."""
+
         if rc == 0:
             self.connected = True
             self.connection_established.set()
@@ -58,13 +45,13 @@ class MQTTPublisher:
             print(f"[MQTT] Connection failed: {code}")
 
     def _on_disconnect(self, client, userdata, rc, properties=None):
-        """Callback when MQTT client disconnects (вызывается из потока MQTT)."""
+
         self.connected = False
         self.connection_established.clear()
         print(f"[MQTT] Disconnected from broker")
     
     def connect(self):
-        """Connect to MQTT broker."""
+
         if self.client and self.connected:
             return
         
@@ -90,15 +77,7 @@ class MQTTPublisher:
     
     def add_sensor_data(self, sensor_type: str, value: Any, simulated: bool, 
                        timestamp: Optional[float] = None):
-        """
-        Add sensor data to the queue (thread-safe, non-blocking).
-        
-        Args:
-            sensor_type: Type of sensor (DS1, DUS1, etc.)
-            value: Sensor value
-            simulated: Whether the value is simulated
-            timestamp: Optional timestamp (defaults to current time)
-        """
+
         if timestamp is None:
             timestamp = time.time()
         
@@ -111,16 +90,14 @@ class MQTTPublisher:
             'device_name': self.device_config.get('device_name', 'Unknown')
         }
         
-        # Non-blocking put (will raise Full exception if queue is full, but we handle it)
+        # Non-blocking put (will raise full exception if queue is full, but we handle it)
         try:
             self.data_queue.put_nowait(data)
         except queue.Full:
             print(f"[MQTT] Warning: Queue full, dropping data from {sensor_type}")
     
     def _send_batch(self, batch: list):
-        """
-        Send a batch of messages via MQTT.
-        """
+
         if not self.connection_established.is_set() or not self.client:
             return
         
@@ -152,10 +129,7 @@ class MQTTPublisher:
                 print(f"[MQTT] Error publishing to {topic}: {e}")
     
     def _daemon_worker(self):
-        """
-        Daemon thread worker that sends batches periodically.
-        Ждём установления соединения (Event), чтобы не слать до on_connect.
-        """
+
         # Явно ждём соединения: колбэк on_connect выполняется в другом потоке
         if not self.connection_established.wait(timeout=15):
             print("[MQTT] Daemon: still not connected after 15s, will retry when connected")
@@ -207,7 +181,7 @@ class MQTTPublisher:
             self._send_batch(batch)
     
     def start(self):
-        """Start the MQTT publisher and daemon thread."""
+
         self.connect()
         
         if not self.connected:
@@ -219,7 +193,7 @@ class MQTTPublisher:
         print("[MQTT] Daemon thread started")
     
     def stop(self):
-        """Stop the MQTT publisher and daemon thread."""
+
         self.stop_event.set()
         
         if self.daemon_thread:
