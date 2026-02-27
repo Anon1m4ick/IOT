@@ -1,11 +1,13 @@
 import time
 import random
 
+
 def generate_values(initial_value=0):
+    """Fewer motion events: longer pauses, lower probability of 0->1."""
     state = initial_value
     while True:
-        time.sleep(random.uniform(0.5, 3))
-        if random.random() < 0.5:
+        time.sleep(random.uniform(2.0, 5.0))
+        if random.random() < 0.18:
             state = 1 - state
         yield state
 
