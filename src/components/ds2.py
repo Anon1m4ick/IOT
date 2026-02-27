@@ -27,4 +27,10 @@ def run_ds2(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         threads.append(ds2_thread)
         print("Ds2 simulator started")
     else:
-        print("Error: Real hardware implementation for DS2 is not available. Please use simulated mode.")
+        from sensors.ds2 import run_ds2_loop, DS2
+        print("Starting ds2 loop")
+        ds2 = DS2(settings['pin'])
+        ds2_thread = threading.Thread(target=run_ds2_loop, args=(ds2, 0.5, enhanced_callback, stop_event))
+        ds2_thread.start()
+        threads.append(ds2_thread)
+        print("Ds2 loop started")
