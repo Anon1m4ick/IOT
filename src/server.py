@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 import paho.mqtt.client as mqtt
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
@@ -244,13 +244,28 @@ app = Flask(__name__)
 bridge: Optional[MQTTInfluxDBBridge] = None
 
 
+def _get_camera_config() -> Dict[str, Any]:
+    return app.config.get("camera_config", {})
+
+
+def _camera_enabled() -> bool:
+    return bool(_get_camera_config())
+
+
+def _camera_stream_url() -> str:
+    cfg = _get_camera_config()
+    port = int(cfg.get("port", 8080))
+    return str(cfg.get("stream_url", f"http://localhost:{port}/?action=stream"))
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint."""
     return jsonify({
         'status': 'ok',
         'mqtt_connected': bridge.connected if bridge else False,
-        'influxdb_connected': bridge.write_api is not None if bridge else False
+        'influxdb_connected': bridge.write_api is not None if bridge else False,
+        'camera_enabled': _camera_enabled(),
     })
 
 
@@ -300,7 +315,40 @@ def control_door_buzzer():
     })
 
 
-def create_app(mqtt_config: Dict[str, Any], influxdb_config: Dict[str, Any]) -> Flask:
+@app.route('/api/camera', methods=['GET'])
+def get_camera_info():
+    if not _camera_enabled():
+        return jsonify({
+            'status': 'error',
+            'message': 'CAMERA is not configured'
+        }), 404
+    cfg = _get_camera_config()
+    return jsonify({
+        'status': 'ok',
+        'simulated': bool(cfg.get('simulated', False)),
+        'auto_start': bool(cfg.get('auto_start', False)),
+        'port': int(cfg.get('port', 8080)),
+        'stream_url': _camera_stream_url(),
+    })
+
+
+@app.route('/camera', methods=['GET'])
+def camera_page():
+    if not _camera_enabled():
+        return (
+            "<h1>CAMERA not configured</h1><p>Add CAMERA section in settings.json.</p>",
+            404,
+            {"Content-Type": "text/html; charset=utf-8"},
+        )
+
+    return render_template("camera.html", stream_url=_camera_stream_url())
+
+
+def create_app(
+    mqtt_config: Dict[str, Any],
+    influxdb_config: Dict[str, Any],
+    camera_config: Optional[Dict[str, Any]] = None,
+) -> Flask:
     """
     Create and configure Flask app with MQTT-InfluxDB bridge.
     
@@ -320,6 +368,7 @@ def create_app(mqtt_config: Dict[str, Any], influxdb_config: Dict[str, Any]) -> 
     else:
         print("[Server] Bridge already initialized, reusing existing connection")
     
+    app.config["camera_config"] = camera_config or {}
     return app
 
 
@@ -346,12 +395,13 @@ def main():
     
     mqtt_config = settings.get('mqtt', {})
     influxdb_config = settings.get('influxdb', {})
+    camera_config = settings.get('CAMERA', {})
     
     if not mqtt_config or not influxdb_config:
         print("Error: MQTT or InfluxDB configuration missing in settings.json")
         sys.exit(1)
     
-    app = create_app(mqtt_config, influxdb_config)
+    app = create_app(mqtt_config, influxdb_config, camera_config)
     
     print("[Server] Starting Flask server on http://localhost:5001")
     try:
