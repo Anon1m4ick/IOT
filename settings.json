@@ -136,8 +136,8 @@
     },
 
     "DHT3": {
-        "simulated": true,
-        "pin": 4
+        "simulated": false,
+        "pin": 17
     },
 
     "LCD": {
