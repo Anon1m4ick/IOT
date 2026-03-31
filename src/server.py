@@ -2,10 +2,11 @@ import json
 import threading
 import time
 from datetime import datetime
+from collections import deque
 from typing import Dict, Any, Optional
 
 import paho.mqtt.client as mqtt
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, redirect, url_for
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
@@ -30,6 +31,21 @@ class MQTTInfluxDBBridge:
         # Lock for InfluxDB writes (minimal locking)
         self.influx_lock = threading.Lock()
         self.subscribe_lock = threading.Lock() 
+        self.mqtt_lock = threading.Lock()
+
+        self.control_topic = str(self.mqtt_config.get("control_topic", "commands/pi1"))
+
+        self.state_lock = threading.Lock()
+        self.latest_sensor_values: Dict[str, Any] = {}
+        self.notifications = deque(maxlen=200)
+        self.state = {
+            "alarm_active": False,
+            "timer_remaining_seconds": 0,
+            "brgb_color": "OFF",
+            "person_count": 0,
+            "updated_at": time.time(),
+        }
+        self._last_alarm_state: Optional[bool] = None
         
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         """Callback when MQTT client connects."""
@@ -67,6 +83,7 @@ class MQTTInfluxDBBridge:
             
             # Store in InfluxDB
             self._store_in_influxdb(sensor_type, payload)
+            self._update_runtime_state(sensor_type, payload)
             
         except json.JSONDecodeError as e:
             print(f"[Server] Error decoding JSON: {e}")
@@ -127,6 +144,130 @@ class MQTTInfluxDBBridge:
             
         except Exception as e:
             print(f"[Server] Error storing in InfluxDB: {e}")
+
+    def _store_alarm_transition_event(self, active: bool, data: Dict[str, Any]):
+        if not self.write_api:
+            return
+        try:
+            event_type = "entered" if active else "exited"
+            point = Point("alarm_events") \
+                .tag("event_type", event_type) \
+                .tag("pi_id", data.get("pi_id", "unknown")) \
+                .tag("device_name", data.get("device_name", "unknown")) \
+                .tag("simulated", str(data.get("simulated", False))) \
+                .field("alarm_state", 1 if active else 0) \
+                .time(int(data.get("timestamp", time.time()) * 1e9), WritePrecision.NS)
+            with self.influx_lock:
+                self.write_api.write(
+                    bucket=self.influxdb_config['bucket'],
+                    org=self.influxdb_config['org'],
+                    record=point
+                )
+        except Exception as e:
+            print(f"[Server] Error storing alarm transition event: {e}")
+
+    def _add_notification(self, message: str, level: str = "info"):
+        now = datetime.now().strftime("%H:%M:%S")
+        item = {
+            "timestamp": now,
+            "message": str(message),
+            "level": str(level),
+        }
+        with self.state_lock:
+            self.notifications.appendleft(item)
+
+    def _update_runtime_state(self, sensor_type: str, data: Dict[str, Any]):
+        value = data.get("value")
+        timestamp = float(data.get("timestamp", time.time()))
+
+        with self.state_lock:
+            self.latest_sensor_values[sensor_type] = value
+            self.state["updated_at"] = timestamp
+
+            if sensor_type == "4SD":
+                try:
+                    self.state["timer_remaining_seconds"] = max(0, int(float(value)))
+                except Exception:
+                    pass
+            elif sensor_type == "BRGB":
+                self.state["brgb_color"] = str(value).upper()
+            elif sensor_type == "ALARM_PEOPLE":
+                try:
+                    self.state["person_count"] = max(0, int(float(value)))
+                except Exception:
+                    pass
+
+        if sensor_type == "ALARM":
+            active = bool(int(float(value))) if value is not None else False
+            should_store_transition = False
+            with self.state_lock:
+                self.state["alarm_active"] = active
+                if self._last_alarm_state is None or self._last_alarm_state != active:
+                    should_store_transition = True
+                    self._last_alarm_state = active
+            if should_store_transition:
+                self._store_alarm_transition_event(active, data)
+                self._add_notification(
+                    "ALARM ACTIVATED" if active else "ALARM DEACTIVATED",
+                    level="critical" if active else "success",
+                )
+        elif sensor_type in ("DPIR1", "DPIR2", "DPIR3"):
+            try:
+                if int(float(value)) == 1:
+                    self._add_notification(f"{sensor_type}: motion detected", level="warning")
+            except Exception:
+                pass
+        elif sensor_type == "GSG":
+            try:
+                if int(float(value)) == 1:
+                    self._add_notification("GSG significant movement detected", level="warning")
+            except Exception:
+                pass
+        elif sensor_type == "DMS":
+            self._add_notification(f"DMS key: {value}", level="info")
+
+    def get_dashboard_state(self) -> Dict[str, Any]:
+        with self.state_lock:
+            latest = dict(self.latest_sensor_values)
+            notifications = list(self.notifications)[:50]
+            state_snapshot = dict(self.state)
+
+        dht = {}
+        for idx in ("1", "2", "3"):
+            temp_key = f"DHT{idx}_TEMPERATURE"
+            hum_key = f"DHT{idx}_HUMIDITY"
+            dht[f"DHT{idx}"] = {
+                "temperature": latest.get(temp_key),
+                "humidity": latest.get(hum_key),
+            }
+
+        return {
+            "state": state_snapshot,
+            "latest_sensors": latest,
+            "dht": dht,
+            "notifications": notifications,
+            "control_topic": self.control_topic,
+        }
+
+    def publish_command(self, action: str, payload: Optional[Dict[str, Any]] = None) -> bool:
+        if not self.mqtt_client or not self.connected:
+            return False
+        command = {
+            "action": str(action).strip().lower(),
+            "payload": payload or {},
+            "source": "web",
+            "timestamp": time.time(),
+        }
+        try:
+            with self.mqtt_lock:
+                result = self.mqtt_client.publish(self.control_topic, json.dumps(command), qos=1)
+            ok = result.rc == mqtt.MQTT_ERR_SUCCESS
+            if ok:
+                self._add_notification(f"Command sent: {command['action']}", level="info")
+            return ok
+        except Exception as e:
+            print(f"[Server] Error publishing command: {e}")
+            return False
     
     def _convert_value(self, value: Any) -> float:
 
@@ -317,6 +458,149 @@ def camera_page():
     return render_template("camera.html", stream_url=_camera_stream_url())
 
 
+@app.route('/dashboard', methods=['GET'])
+def dashboard_page():
+    snapshot = bridge.get_dashboard_state() if bridge else {
+        "state": {
+            "alarm_active": False,
+            "timer_remaining_seconds": 0,
+            "brgb_color": "OFF",
+            "person_count": 0,
+            "updated_at": time.time(),
+        },
+        "latest_sensors": {},
+        "dht": {},
+        "notifications": [],
+    }
+    status = request.args.get("status", "")
+    return render_template(
+        "dashboard.html",
+        state=snapshot.get("state", {}),
+        latest_sensors=snapshot.get("latest_sensors", {}),
+        dht=snapshot.get("dht", {}),
+        notifications=snapshot.get("notifications", []),
+        camera_enabled=_camera_enabled(),
+        camera_page_url=url_for("camera_page"),
+        grafana_url=app.config.get("grafana_url", "http://localhost:3000"),
+        status=status,
+    )
+
+
+def _publish_dashboard_command(action: str, payload: Optional[Dict[str, Any]] = None) -> bool:
+    if not bridge:
+        return False
+    return bridge.publish_command(action, payload or {})
+
+
+@app.route('/dashboard/alarm/arm', methods=['POST'])
+def dashboard_alarm_arm():
+    ok = _publish_dashboard_command("alarm_arm")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/alarm/disarm', methods=['POST'])
+def dashboard_alarm_disarm():
+    ok = _publish_dashboard_command("alarm_disarm")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/alarm/trigger', methods=['POST'])
+def dashboard_alarm_trigger():
+    reason = str(request.form.get("reason", "Web manual trigger")).strip() or "Web manual trigger"
+    ok = _publish_dashboard_command("alarm_trigger", {"reason": reason})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/alarm/pin', methods=['POST'])
+def dashboard_alarm_pin():
+    pin = str(request.form.get("pin", "")).strip()
+    if not (pin.isdigit() and len(pin) == 4):
+        return redirect(url_for("dashboard_page", status="invalid_pin"))
+    ok = _publish_dashboard_command("alarm_pin", {"pin": pin})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/set', methods=['POST'])
+def dashboard_timer_set():
+    try:
+        seconds = int(request.form.get("seconds", "0"))
+    except ValueError:
+        return redirect(url_for("dashboard_page", status="invalid_seconds"))
+    ok = _publish_dashboard_command("timer_set", {"seconds": max(0, seconds)})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/start', methods=['POST'])
+def dashboard_timer_start():
+    ok = _publish_dashboard_command("timer_start")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/stop', methods=['POST'])
+def dashboard_timer_stop():
+    ok = _publish_dashboard_command("timer_stop")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/add', methods=['POST'])
+def dashboard_timer_add():
+    raw = str(request.form.get("seconds", "")).strip()
+    payload = {}
+    if raw:
+        try:
+            payload["seconds"] = max(0, int(raw))
+        except ValueError:
+            return redirect(url_for("dashboard_page", status="invalid_seconds"))
+    ok = _publish_dashboard_command("timer_add", payload)
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/button', methods=['POST'])
+def dashboard_timer_button():
+    ok = _publish_dashboard_command("timer_button")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/timer/button_add', methods=['POST'])
+def dashboard_timer_button_add():
+    try:
+        seconds = int(request.form.get("seconds", "0"))
+    except ValueError:
+        return redirect(url_for("dashboard_page", status="invalid_seconds"))
+    ok = _publish_dashboard_command("timer_set_button_add", {"seconds": max(0, seconds)})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/brgb', methods=['POST'])
+def dashboard_brgb():
+    button = str(request.form.get("button", "")).strip()
+    if button not in {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}:
+        return redirect(url_for("dashboard_page", status="invalid_brgb"))
+    ok = _publish_dashboard_command("brgb_button", {"button": button})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/dl', methods=['POST'])
+def dashboard_dl():
+    state = str(request.form.get("state", "off")).strip().lower()
+    if state not in {"on", "off"}:
+        return redirect(url_for("dashboard_page", status="invalid_dl"))
+    ok = _publish_dashboard_command("dl_set", {"state": state})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/camera/start', methods=['POST'])
+def dashboard_camera_start():
+    ok = _publish_dashboard_command("camera_start")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/camera/stop', methods=['POST'])
+def dashboard_camera_stop():
+    ok = _publish_dashboard_command("camera_stop")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
 def create_app(
     mqtt_config: Dict[str, Any],
     influxdb_config: Dict[str, Any],
@@ -360,12 +644,14 @@ def main():
     mqtt_config = settings.get('mqtt', {})
     influxdb_config = settings.get('influxdb', {})
     camera_config = settings.get('CAMERA', {})
+    grafana_url = os.environ.get("GRAFANA_URL", "http://localhost:3000")
     
     if not mqtt_config or not influxdb_config:
         print("Error: MQTT or InfluxDB configuration missing in settings.json")
         sys.exit(1)
     
     app = create_app(mqtt_config, influxdb_config, camera_config)
+    app.config["grafana_url"] = grafana_url
     
     print("[Server] Starting Flask server on http://localhost:5001")
     try:

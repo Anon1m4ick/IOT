@@ -3,16 +3,16 @@ import random
 
 
 def generate_values(initial_value=0):
-    """Bias toward closed (0): door rarely opens and closes again quickly (< 5s)."""
+    """Bias toward closed (0): door opens infrequently and closes quickly."""
     state = initial_value
     while True:
         if state == 1:
-            time.sleep(random.uniform(0.4, 1.5))  # short "open" time
-            if random.random() < 0.85:
+            time.sleep(random.uniform(0.6, 1.4))
+            if random.random() < 0.92:
                 state = 0
         else:
-            time.sleep(random.uniform(2.0, 5.0))  # longer intervals between "opens"
-            if random.random() < 0.12:
+            time.sleep(random.uniform(6.0, 14.0))
+            if random.random() < 0.06:
                 state = 1
         yield int(state)
 

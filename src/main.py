@@ -2,6 +2,8 @@ import threading
 import sys
 import time
 import os
+import json
+import paho.mqtt.client as mqtt
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal
 from textual.widgets import Header, Footer, Input, RichLog, Static
@@ -100,6 +102,8 @@ class SmartHomeTUI(App):
         self.mqtt_publisher = None
         self.brgb_handler = None  # Handler for BRGB control via IR commands
         self.alarm_controller = None
+        self.control_mqtt_client = None
+        self.control_topic = "commands/pi1"
 
         self._init_actuators()
         self._init_mqtt_publisher()
@@ -146,6 +150,7 @@ class SmartHomeTUI(App):
         self.command_input.focus()
 
         self._start_sensors()
+        self._start_control_listener()
         self._update_status(f"System ready. Type commands or 'help' for help.")
         print("[Main] Sensors started, TUI is ready")
 
@@ -190,6 +195,142 @@ class SmartHomeTUI(App):
                 self.mqtt_publisher = None
         else:
             print("[Main] MQTT configuration not found, MQTT publisher disabled")
+
+    def _start_control_listener(self):
+        mqtt_config = self.settings.get("mqtt")
+        if not mqtt_config:
+            return
+
+        broker_host = mqtt_config.get("broker_host", "localhost")
+        broker_port = int(mqtt_config.get("broker_port", 1883))
+        base_client_id = mqtt_config.get("client_id", "pi1_client")
+        self.control_topic = str(mqtt_config.get("control_topic", "commands/pi1"))
+
+        try:
+            client = mqtt.Client(
+                client_id=f"{base_client_id}_control_listener",
+                protocol=mqtt.MQTTv5,
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            )
+
+            def on_connect(cli, userdata, flags, rc, properties=None):
+                code = getattr(rc, "getReasonCode", lambda: rc)()
+                if code == 0:
+                    cli.subscribe(self.control_topic, qos=1)
+                    self._log_to_pi("PI1", f"Web control listener subscribed: {self.control_topic}", "SYSTEM")
+                else:
+                    self._update_status(f"MQTT control listener connect error: {code}", from_thread=True)
+
+            def on_message(cli, userdata, msg):
+                try:
+                    payload = json.loads(msg.payload.decode("utf-8"))
+                    if isinstance(payload, dict):
+                        self._handle_remote_command(payload)
+                except Exception as exc:
+                    self._update_status(f"Invalid control message: {exc}", from_thread=True)
+
+            client.on_connect = on_connect
+            client.on_message = on_message
+            client.connect(broker_host, broker_port, keepalive=60)
+            client.loop_start()
+            self.control_mqtt_client = client
+        except Exception as exc:
+            self._update_status(f"Failed to start MQTT control listener: {exc}")
+
+    def _stop_control_listener(self):
+        if not self.control_mqtt_client:
+            return
+        try:
+            self.control_mqtt_client.loop_stop()
+            self.control_mqtt_client.disconnect()
+        except Exception:
+            pass
+        finally:
+            self.control_mqtt_client = None
+
+    def _handle_remote_command(self, command: dict):
+        action = str(command.get("action", "")).strip().lower()
+        payload = command.get("payload", {})
+        payload = payload if isinstance(payload, dict) else {}
+
+        if not action:
+            return
+
+        try:
+            if action == "alarm_arm":
+                if self.alarm_controller:
+                    self.alarm_controller.arm()
+                    self._log_to_pi("PI1", "ALARM command: arm", "SYSTEM")
+            elif action == "alarm_disarm":
+                if self.alarm_controller:
+                    self.alarm_controller.disarm()
+                    self._log_to_pi("PI1", "ALARM command: disarm", "SYSTEM")
+            elif action == "alarm_trigger":
+                reason = str(payload.get("reason", "Web trigger"))
+                if self.alarm_controller:
+                    self.alarm_controller.trigger_alarm(reason)
+                    self._log_to_pi("PI1", f"ALARM command: trigger ({reason})", "SYSTEM")
+            elif action == "alarm_pin":
+                pin = str(payload.get("pin", "")).strip()
+                if self.alarm_controller and pin.isdigit() and len(pin) == 4:
+                    for ch in pin:
+                        self.alarm_controller.handle_dms_key(ch)
+                    self._log_to_pi("PI1", "ALARM command: PIN entered (****)", "SYSTEM")
+            elif action == "timer_set":
+                if "4SD" in self.actuators:
+                    seconds = int(payload.get("seconds", 60))
+                    self.actuators["4SD"]["set_duration"](seconds)
+                    self._log_to_pi("PI2", f"4SD command: set {seconds}s", "SYSTEM")
+            elif action == "timer_start":
+                if "4SD" in self.actuators:
+                    self.actuators["4SD"]["start"]()
+                    self._log_to_pi("PI2", "4SD command: start", "SYSTEM")
+            elif action == "timer_stop":
+                if "4SD" in self.actuators:
+                    self.actuators["4SD"]["stop"]()
+                    self._log_to_pi("PI2", "4SD command: stop", "SYSTEM")
+            elif action == "timer_add":
+                if "4SD" in self.actuators:
+                    seconds = payload.get("seconds")
+                    self.actuators["4SD"]["add_seconds"](None if seconds is None else int(seconds))
+                    self._log_to_pi("PI2", f"4SD command: add {seconds if seconds is not None else 'default'}", "SYSTEM")
+            elif action == "timer_button":
+                if "4SD" in self.actuators:
+                    self.actuators["4SD"]["button_press"]()
+                    self._log_to_pi("PI2", "4SD command: BTN press", "SYSTEM")
+            elif action == "timer_set_button_add":
+                if "4SD" in self.actuators:
+                    seconds = int(payload.get("seconds", 30))
+                    self.actuators["4SD"]["set_button_add_seconds"](seconds)
+                    self._log_to_pi("PI2", f"4SD command: BTN add set to {seconds}s", "SYSTEM")
+            elif action == "brgb_button":
+                button = str(payload.get("button", "")).strip()
+                if self.brgb_handler and button in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+                    self.brgb_handler(button)
+                    if self.mqtt_publisher:
+                        self.mqtt_publisher.add_sensor_data(
+                            "IR", button, self.settings.get("IR", {}).get("simulated", True)
+                        )
+                    self._log_to_pi("PI3", f"BRGB command: button {button}", "SYSTEM")
+            elif action == "dl_set":
+                if "DL" in self.actuators:
+                    raw_state = payload.get("state", "off")
+                    if isinstance(raw_state, bool):
+                        state = raw_state
+                    else:
+                        state = str(raw_state).strip().lower() in ("1", "true", "on")
+                    self.actuators["DL"]["set_state"](1 if state else 0)
+                    self._log_to_pi("PI1", f"DL command: {'ON' if state else 'OFF'}", "SYSTEM")
+            elif action == "camera_start":
+                if "CAMERA" in self.actuators:
+                    self.actuators["CAMERA"]["start"]()
+                    self._log_to_pi("PI1", "CAMERA command: start", "SYSTEM")
+            elif action == "camera_stop":
+                if "CAMERA" in self.actuators:
+                    self.actuators["CAMERA"]["stop"]()
+                    self._log_to_pi("PI1", "CAMERA command: stop", "SYSTEM")
+        except Exception as exc:
+            self._update_status(f"Remote command error ({action}): {exc}", from_thread=True)
 
     def _start_sensors(self):
         if self.alarm_controller:
@@ -416,6 +557,7 @@ class SmartHomeTUI(App):
         if cmd == "quit" or cmd == "exit":
             self._update_status("Shutting down...")
             self.stop_event.set()
+            self._stop_control_listener()
             self.exit()
             return
 
@@ -703,6 +845,7 @@ Use prefix pi1 | pi2 | pi3 before each command.
     def action_quit(self) -> None:
         self._update_status("Shutting down...")
         self.stop_event.set()
+        self._stop_control_listener()
         
         if self.mqtt_publisher:
             self.mqtt_publisher.stop()
@@ -712,6 +855,7 @@ Use prefix pi1 | pi2 | pi3 before each command.
     def on_unmount(self) -> None:
         print("[Main] on_unmount called - application is closing")
         self.stop_event.set()
+        self._stop_control_listener()
         
         if self.mqtt_publisher:
             self.mqtt_publisher.stop()

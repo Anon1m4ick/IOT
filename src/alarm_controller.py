@@ -44,11 +44,13 @@ class AlarmController:
         self._dus_history = {"DUS1": deque(), "DUS2": deque()}
         self._siren_stop_event = threading.Event()
         self._siren_thread = None
+        self._last_published_person_count = None
 
     def start(self, threads):
         worker = threading.Thread(target=self._worker_loop, daemon=True)
         worker.start()
         threads.append(worker)
+        self._publish_people_count(self._person_count)
 
     def get_state(self) -> Dict:
         with self._lock:
@@ -139,6 +141,8 @@ class AlarmController:
             self._emit(f"Person ENTER inferred by {sensor_name}; count={count}")
         elif delta == -1:
             self._emit(f"Person EXIT inferred by {sensor_name}; count={count}")
+
+        self._publish_people_count(count)
 
         if self.pir_person_count_alarm and count == 0 and sensor_name in ("DPIR1", "DPIR2", "DPIR3"):
             self._activate_alarm(f"{sensor_name} motion while person_count=0")
@@ -309,6 +313,15 @@ class AlarmController:
     def _publish_alarm_state(self, state: int):
         if self.mqtt_publisher:
             self.mqtt_publisher.add_sensor_data("ALARM", int(state), self.simulated)
+
+    def _publish_people_count(self, count: int):
+        if not self.mqtt_publisher:
+            return
+        count = max(0, int(count))
+        if self._last_published_person_count == count:
+            return
+        self._last_published_person_count = count
+        self.mqtt_publisher.add_sensor_data("ALARM_PEOPLE", count, self.simulated)
 
     def _emit(self, message: str):
         try:

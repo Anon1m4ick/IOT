@@ -2,11 +2,15 @@ import time
 import random
 
 def generate_values(initial_value=""):
-    buttons = ['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D']
+    pin_buttons = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#']
+    control_buttons = ['A', 'B', 'C', 'D']
     while True:
-        time.sleep(random.uniform(1, 5))
-        if random.random() < 0.3:
-            value = random.choice(buttons)
+        time.sleep(random.uniform(5.0, 15.0))
+        if random.random() < 0.08:
+            if random.random() < 0.95:
+                value = random.choice(pin_buttons)
+            else:
+                value = random.choice(control_buttons)
             yield value
         else:
             yield None
