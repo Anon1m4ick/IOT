@@ -17,9 +17,8 @@ def run_gsg_simulator(interval, callback, stop_event):
     """
     while not stop_event.is_set():
         try:
-            # Randomly generate 0 or 1 (with higher probability of 0 for "normal" state)
-            # 20% chance of movement (1), 80% chance of no movement (0)
-            movement = 1 if random.random() < 0.015 else 0  # ~1.5% chance
+            # Keep movement events rare to avoid frequent alarm triggers.
+            movement = 1 if random.random() < 0.003 else 0
             callback(movement)
             time.sleep(interval)
         except Exception as e:

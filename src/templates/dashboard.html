@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Home Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f2ec;
+      --panel: #fffdf8;
+      --line: #d9d3c6;
+      --ink: #1f2a2b;
+      --muted: #5e6a6c;
+      --ok: #1f7a49;
+      --danger: #b83030;
+      --warn: #b57a20;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(160deg, #efeade 0%, #f8f5ee 55%, #ece6d9 100%);
+      color: var(--ink);
+    }
+    .wrap { max-width: 1200px; margin: 20px auto; padding: 0 14px 20px; }
+    .head { display: flex; justify-content: space-between; align-items: end; gap: 10px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 1.65rem; }
+    .badge {
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 7px 12px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      background: #eef3eb;
+      color: #205f3e;
+    }
+    .badge.active { background: #ffe8e8; color: #8d2424; border-color: #edc0c0; }
+    .hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 10px; }
+    .status {
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      background: #fbf8ef;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 0.9rem;
+    }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(31, 42, 43, 0.06);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 1.02rem; }
+    .alarm { grid-column: span 5; }
+    .timer { grid-column: span 4; }
+    .brgb { grid-column: span 3; }
+    .climate { grid-column: span 6; }
+    .links { grid-column: span 6; }
+    .notif { grid-column: span 12; }
+    .kv { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #ece4d4; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    input, button {
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 10px;
+      background: #fff;
+      color: var(--ink);
+    }
+    button { cursor: pointer; font-weight: 700; }
+    .danger { background: #ffe8e8; border-color: #efbcbc; }
+    .ok { background: #e5f4ea; border-color: #bfdfca; }
+    .warn { background: #fff3de; border-color: #e8cf9f; }
+    .pin-panel { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fcf9f2; }
+    .pin-display {
+      width: 100%;
+      text-align: center;
+      letter-spacing: 6px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: #fff;
+    }
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .pin-grid button { padding: 10px; }
+    .mono { font-family: "Consolas", "JetBrains Mono", monospace; }
+    .notif-list {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fcfaf4;
+      max-height: 260px;
+      overflow: auto;
+    }
+    .notif-line { padding: 7px 10px; border-bottom: 1px solid #ede7d9; font-size: 0.92rem; }
+    .notif-line:last-child { border-bottom: 0; }
+    .critical { color: var(--danger); font-weight: 800; }
+    .warning { color: var(--warn); font-weight: 700; }
+    .success { color: var(--ok); font-weight: 700; }
+    a { color: #0f5f91; text-decoration: none; font-weight: 700; }
+    a:hover { text-decoration: underline; }
+    @media (max-width: 980px) {
+      .alarm, .timer, .brgb, .climate, .links, .notif { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <h1>Smart Home Web Panel</h1>
+        <div class="hint">Alarm, timer, BRGB control. Camera stream is only on <span class="mono">/camera</span>. Grafana data is viewed only in Grafana.</div>
+      </div>
+      <div class="badge {% if state.alarm_active %}active{% endif %}">
+        ALARM: {% if state.alarm_active %}ACTIVE{% else %}INACTIVE{% endif %}
+      </div>
+    </div>
+
+    {% if status %}
+    <div class="status">
+      Status: {{ status }}
+    </div>
+    {% endif %}
+
+    <div class="grid">
+      <section class="card alarm">
+        <h2>Alarm / Security</h2>
+        <div class="kv"><span>People count</span><strong>{{ state.person_count if state.person_count is not none else 0 }}</strong></div>
+        <div class="kv"><span>Timer remaining</span><strong class="mono">{{ state.timer_remaining_seconds if state.timer_remaining_seconds is not none else 0 }}s</strong></div>
+
+        <div class="row">
+          <form action="/dashboard/alarm/arm" method="post"><button class="warn" type="submit">Arm (+10s delay)</button></form>
+          <form action="/dashboard/alarm/disarm" method="post"><button class="ok" type="submit">Disarm</button></form>
+          <form action="/dashboard/alarm/trigger" method="post">
+            <input type="hidden" name="reason" value="Web manual trigger" />
+            <button class="danger" type="submit">Trigger</button>
+          </form>
+        </div>
+
+        <div class="pin-panel">
+          <form id="pinForm" action="/dashboard/alarm/pin" method="post">
+            <input id="pinValue" class="pin-display mono" name="pin" type="text" maxlength="4" value="" readonly placeholder="----" />
+            <div class="pin-grid">
+              <button type="button" onclick="pinTap('1')">1</button>
+              <button type="button" onclick="pinTap('2')">2</button>
+              <button type="button" onclick="pinTap('3')">3</button>
+              <button type="button" onclick="pinTap('4')">4</button>
+              <button type="button" onclick="pinTap('5')">5</button>
+              <button type="button" onclick="pinTap('6')">6</button>
+              <button type="button" onclick="pinTap('7')">7</button>
+              <button type="button" onclick="pinTap('8')">8</button>
+              <button type="button" onclick="pinTap('9')">9</button>
+              <button type="button" onclick="pinClear()">*</button>
+              <button type="button" onclick="pinTap('0')">0</button>
+              <button type="button" onclick="pinBack()">#</button>
+            </div>
+            <div class="row">
+              <button class="ok" type="submit">Submit PIN</button>
+              <button type="button" onclick="pinClear()">Clear</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="card timer">
+        <h2>Kitchen Timer (4SD)</h2>
+        <div class="kv"><span>Remaining</span><strong class="mono">{{ state.timer_remaining_seconds if state.timer_remaining_seconds is not none else 0 }}s</strong></div>
+        <div class="row">
+          <form action="/dashboard/timer/set" method="post">
+            <input type="number" name="seconds" min="0" step="1" placeholder="Set seconds" required />
+            <button type="submit">Set</button>
+          </form>
+        </div>
+        <div class="row">
+          <form action="/dashboard/timer/start" method="post"><button type="submit">Start</button></form>
+          <form action="/dashboard/timer/stop" method="post"><button type="submit">Stop</button></form>
+        </div>
+        <div class="row">
+          <form action="/dashboard/timer/add" method="post">
+            <input type="number" name="seconds" min="0" step="1" placeholder="Add seconds (optional)" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div class="row">
+          <form action="/dashboard/timer/button_add" method="post">
+            <input type="number" name="seconds" min="0" step="1" placeholder="BTN add N seconds" required />
+            <button type="submit">Save BTN N</button>
+          </form>
+        </div>
+        <div class="row">
+          <form action="/dashboard/timer/button" method="post"><button type="submit">BTN Press</button></form>
+        </div>
+      </section>
+
+      <section class="card brgb">
+        <h2>BRGB</h2>
+        <div class="kv"><span>Current color</span><strong>{{ state.brgb_color if state.brgb_color else 'OFF' }}</strong></div>
+        <div class="row">
+          {% for b in ['0','1','2','3','4','5','6','7','8','9'] %}
+          <form action="/dashboard/brgb" method="post">
+            <input type="hidden" name="button" value="{{ b }}" />
+            <button type="submit">{{ b }}</button>
+          </form>
+          {% endfor %}
+        </div>
+        <div class="row">
+          <form action="/dashboard/dl" method="post">
+            <input type="hidden" name="state" value="on" />
+            <button type="submit">DL ON</button>
+          </form>
+          <form action="/dashboard/dl" method="post">
+            <input type="hidden" name="state" value="off" />
+            <button type="submit">DL OFF</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="card climate">
+        <h2>DHT Sensors (LCD source)</h2>
+        <div class="kv"><span>DHT1</span><span>T={{ dht.get('DHT1', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT1', {}).get('humidity', '-') }}%</span></div>
+        <div class="kv"><span>DHT2</span><span>T={{ dht.get('DHT2', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT2', {}).get('humidity', '-') }}%</span></div>
+        <div class="kv"><span>DHT3</span><span>T={{ dht.get('DHT3', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT3', {}).get('humidity', '-') }}%</span></div>
+      </section>
+
+      <section class="card links">
+        <h2>External Views</h2>
+        <div class="row">
+          <a href="{{ grafana_url }}" target="_blank" rel="noopener">Open Grafana</a>
+        </div>
+        <div class="row">
+          {% if camera_enabled %}
+          <a href="{{ camera_page_url }}" target="_blank" rel="noopener">Open Camera Page (/camera)</a>
+          {% else %}
+          <span>Camera not configured.</span>
+          {% endif %}
+        </div>
+        <div class="row">
+          <form action="/dashboard/camera/start" method="post"><button type="submit">Start Camera</button></form>
+          <form action="/dashboard/camera/stop" method="post"><button type="submit">Stop Camera</button></form>
+        </div>
+      </section>
+
+      <section class="card notif">
+        <h2>Notifications</h2>
+        <div class="notif-list">
+          {% if notifications %}
+            {% for n in notifications %}
+            <div class="notif-line {{ n.level|default('info') }}">
+              [{{ n.timestamp }}] {{ n.message }}
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="notif-line">No notifications yet</div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const pinInput = document.getElementById("pinValue");
+
+    function pinTap(digit) {
+      if (!pinInput) return;
+      if (pinInput.value.length >= 4) return;
+      pinInput.value += digit;
+    }
+
+    function pinBack() {
+      if (!pinInput) return;
+      pinInput.value = pinInput.value.slice(0, -1);
+    }
+
+    function pinClear() {
+      if (!pinInput) return;
+      pinInput.value = "";
+    }
+
+    setInterval(() => {
+      const active = document.activeElement;
+      const safeToReload = !active || (active.id !== "pinValue");
+      if (safeToReload && pinInput && pinInput.value.length === 0) {
+        window.location.reload();
+      }
+    }, 5000);
+  </script>
+</body>
+</html>

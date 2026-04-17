@@ -3,11 +3,11 @@ import random
 
 
 def generate_values(initial_value=0):
-    """Fewer motion events: longer pauses, lower probability of 0->1."""
+    """Rare motion events to avoid constant alarm activations in simulation."""
     state = initial_value
     while True:
-        time.sleep(random.uniform(2.0, 5.0))
-        if random.random() < 0.18:
+        time.sleep(random.uniform(6.0, 14.0))
+        if random.random() < 0.08:
             state = 1 - state
         yield state
 
