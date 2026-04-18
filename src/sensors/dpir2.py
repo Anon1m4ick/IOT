@@ -33,16 +33,20 @@ class DPIR2:
         GPIO.setup(self.pin, GPIO.IN)
         
         # Setup event detection
-        GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._motion_detected_callback, bouncetime=300)
-        GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._no_motion_callback, bouncetime=300)
+        # GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._motion_detected_callback, bouncetime=300)
+        # GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._no_motion_callback, bouncetime=300)
+        GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self._on_edge, bouncetime=300)
     
-    def _motion_detected_callback(self, channel):
-        """Callback for motion detected (RISING edge)"""
-        self.motion_detected = True
+    def _on_edge(self, channel):
+        self.motion_detected = bool(GPIO.input(channel))
+
+    # def _motion_detected_callback(self, channel):
+    #     """Callback for motion detected (RISING edge)"""
+    #     self.motion_detected = True
     
-    def _no_motion_callback(self, channel):
-        """Callback for no motion (FALLING edge)"""
-        self.motion_detected = False
+    # def _no_motion_callback(self, channel):
+    #     """Callback for no motion (FALLING edge)"""
+    #     self.motion_detected = False
     
     def get_state(self):
         """Get current motion state (1 = detected, 0 = no motion)"""
