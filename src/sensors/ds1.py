@@ -34,14 +34,18 @@ class DS1:
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         # Edge detection with debouncing, similar to the provided example code.
-        GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._on_pressed, bouncetime=100)
-        GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._on_released, bouncetime=100)
+        # GPIO.add_event_detect(self.pin, GPIO.RISING, callback=self._on_pressed, bouncetime=100)
+        # GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._on_released, bouncetime=100)
+        GPIO.add_event_detect(self.pin, GPIO.BOTH, callback=self._on_edge, bouncetime=100)
 
-    def _on_pressed(self, channel):
-        self._pressed = True
+    # def _on_pressed(self, channel):
+    #     self._pressed = True
 
-    def _on_released(self, channel):
-        self._pressed = False
+    # def _on_released(self, channel):
+    #     self._pressed = False
+    
+    def _on_edge(self, channel):
+        self._pressed = GPIO.input(channel) == GPIO.LOW
 
     def get_state(self) -> int:
         """
