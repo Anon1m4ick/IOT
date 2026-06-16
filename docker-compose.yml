@@ -49,6 +49,42 @@ services:
       - influxdb
     restart: unless-stopped
 
+  server:
+    build: .
+    container_name: iot-server
+    command: python src/server.py
+    environment:
+      SETTINGS_PATH: docker/settings.docker.json
+      MQTT_BROKER_HOST: mosquitto
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: iot-influx-token
+      GRAFANA_URL: http://localhost:3000
+    ports:
+      - "127.0.0.1:5001:5001"
+    networks:
+      - iot-net
+    depends_on:
+      - mosquitto
+      - influxdb
+    restart: unless-stopped
+
+  # Headless PI application (all devices simulated). This reproduces the real
+  # Raspberry Pi: it only works because MQTT_BROKER_HOST points at the broker
+  # service. Set it to "localhost" to reproduce the "Pi sends nothing" bug.
+  app:
+    build: .
+    container_name: iot-app
+    command: python src/main.py --headless
+    environment:
+      SETTINGS_PATH: docker/settings.docker.json
+      HEADLESS: "1"
+      MQTT_BROKER_HOST: mosquitto
+    networks:
+      - iot-net
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
 
 volumes:
   influxdb-data:

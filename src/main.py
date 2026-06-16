@@ -864,12 +864,67 @@ Use prefix pi1 | pi2 | pi3 before each command.
             thread.join(timeout=2)
 
 
-def main():
+class HeadlessSmartHome(SmartHomeTUI):
+    """Headless runner that reuses all the SmartHomeTUI wiring (sensors, MQTT
+    publisher, alarm controller, command listener) but logs to stdout instead
+    of the Textual TUI. Used for running inside containers / over SSH where no
+    interactive terminal is available.
+    """
+
+    def _log_line(self, pi: str, sensor_name: str, message: str):
+        timestamp = time.strftime('%H:%M:%S', time.localtime())
+        print(f"{timestamp} [{pi}] {sensor_name:6} {message}", flush=True)
+
+    def _safe_log_from_thread(self, sensor_name: str, message: str):
+        if self.stop_event.is_set():
+            return
+        pi = SENSOR_TO_PI.get(sensor_name, "PI1")
+        self._log_line(pi, sensor_name, str(message))
+
+    def _log_to_pi(self, pi: str, message: str, sensor_name: str = "SYSTEM"):
+        self._log_line(pi or "PI1", sensor_name, message)
+
+    def _write_to_pi(self, pi: str, text: str):
+        print(text, flush=True)
+
+    def _update_status(self, message: str, from_thread: bool = False):
+        print(f"[STATUS] {message}", flush=True)
+
+    def run_headless(self):
+        print("[Main] Starting headless Smart Home runner...", flush=True)
+        self._start_sensors()
+        self._start_control_listener()
+        self._update_status("System ready (headless). Sending data over MQTT.")
+        try:
+            while not self.stop_event.is_set():
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            print("\n[Main] Interrupted by user", flush=True)
+        finally:
+            self.stop_event.set()
+            self._stop_control_listener()
+            if self.mqtt_publisher:
+                self.mqtt_publisher.stop()
+            for thread in self.threads:
+                thread.join(timeout=2)
+            print("[Main] Headless runner finished", flush=True)
+
+
+def _resolve_settings_path() -> str:
+    settings_path = os.environ.get('SETTINGS_PATH', '')
+    if settings_path and os.path.exists(settings_path):
+        return settings_path
     settings_path = 'settings.json'
     if not os.path.exists(settings_path):
         parent_path = os.path.join(os.path.dirname(__file__), '..', 'settings.json')
         if os.path.exists(parent_path):
             settings_path = parent_path
+    return settings_path
+
+
+def main():
+    headless = ('--headless' in sys.argv) or (os.environ.get('HEADLESS', '').strip().lower() in ('1', 'true', 'yes'))
+    settings_path = _resolve_settings_path()
 
     try:
         settings = load_settings(settings_path)
@@ -881,8 +936,13 @@ def main():
         print(f"Error loading settings: {e}")
         sys.exit(1)
 
+    if headless:
+        runner = HeadlessSmartHome(settings)
+        runner.run_headless()
+        return
+
     app = SmartHomeTUI(settings)
-    
+
     try:
         print("[Main] Starting TUI application...")
         app.run()
