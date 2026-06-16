@@ -1,26 +1,113 @@
 {
     "device": {
         "pi_id": "PI1",
-        "device_name": "SmartHome Controller PI1"
+        "device_name": "SmartHome Controller (Docker)"
     },
+
     "mqtt": {
         "broker_host": "mosquitto",
         "broker_port": 1883,
         "client_id": "pi1_client",
         "server_client_id": "iot_server",
+        "control_topic": "commands/pi1",
         "topics": {
             "DS1": "sensors/ds1",
+            "DS2": "sensors/ds2",
             "DUS1": "sensors/dus1",
+            "DUS2": "sensors/dus2",
             "DPIR1": "sensors/dpir1",
-            "DMS": "sensors/dms"
+            "DPIR2": "sensors/dpir2",
+            "DPIR3": "sensors/dpir3",
+            "DMS": "sensors/dms",
+            "DHT1_HUMIDITY": "sensors/dht1_humidity",
+            "DHT1_TEMPERATURE": "sensors/dht1_temperature",
+            "DHT2_HUMIDITY": "sensors/dht2_humidity",
+            "DHT2_TEMPERATURE": "sensors/dht2_temperature",
+            "DHT3_HUMIDITY": "sensors/dht3_humidity",
+            "DHT3_TEMPERATURE": "sensors/dht3_temperature",
+            "GSG": "sensors/gsg",
+            "IR": "sensors/ir",
+            "BRGB": "sensors/brgb",
+            "4SD": "sensors/4sd",
+            "ALARM": "sensors/alarm",
+            "ALARM_PEOPLE": "sensors/alarm_people"
         },
         "batch_size": 10,
         "batch_interval_seconds": 5
     },
+
     "influxdb": {
         "url": "http://influxdb:8086",
         "token": "iot-influx-token",
         "org": "FTN",
         "bucket": "NTP"
+    },
+
+    "DS1": { "simulated": true, "pin": 5 },
+    "DS2": { "simulated": true, "pin": 5 },
+    "DPIR1": { "simulated": true, "pin": 6 },
+    "DPIR2": { "simulated": true, "pin": 6 },
+    "DPIR3": { "simulated": true, "pin": 6 },
+    "DUS1": { "simulated": true, "trig_pin": 23, "echo_pin": 24 },
+    "DUS2": { "simulated": true, "trig_pin": 23, "echo_pin": 24 },
+    "DMS": {
+        "simulated": true,
+        "rows": [25, 8, 7, 1],
+        "cols": [12, 16, 20, 21]
+    },
+    "DL": { "simulated": true, "pin": 17 },
+    "DB": { "simulated": true, "pin": 27 },
+
+    "4SD": {
+        "simulated": true,
+        "segment_pins": [11, 4, 23, 8, 7, 10, 18, 25],
+        "digit_pins": [22, 27, 17, 24],
+        "refresh_delay_seconds": 0.001,
+        "tick_interval": 0.1,
+        "blink_interval": 0.5,
+        "default_duration_seconds": 60,
+        "button_add_seconds": 30
+    },
+    "BTN": { "simulated": true, "pin": 17 },
+
+    "ALARM": {
+        "simulated": true,
+        "pin_code": "1234",
+        "arming_delay_seconds": 10,
+        "ds_open_timeout_seconds": 5,
+        "dl_motion_seconds": 10,
+        "dus_history_seconds": 5,
+        "siren_frequency_hz": 1000,
+        "siren_pulse_duration_seconds": 0.5,
+        "siren_pause_seconds": 0.5,
+        "pir_no_person_triggers_alarm": true,
+        "dpir1_entry_on_increasing": true,
+        "dpir2_entry_on_increasing": false
+    },
+
+    "DHT1": { "simulated": true, "pin": 4 },
+    "DHT2": { "simulated": true, "pin": 4 },
+    "DHT3": { "simulated": true, "pin": 17 },
+
+    "LCD": {
+        "simulated": true,
+        "rotation_interval": 3,
+        "i2c_address": null
+    },
+
+    "GSG": {
+        "simulated": true,
+        "interval": 0.5,
+        "threshold": 2000,
+        "calibration_samples": 10
+    },
+
+    "IR": { "simulated": true, "pin": 17 },
+
+    "BRGB": {
+        "simulated": true,
+        "red_pin": 12,
+        "green_pin": 13,
+        "blue_pin": 19
     }
 }
