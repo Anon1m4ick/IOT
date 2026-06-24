@@ -37,9 +37,9 @@ def run_ir(settings, threads, stop_event, callback=None, mqtt_publisher=None, br
             brgb_handler(button_name)
     
     if settings['simulated']:
-        print("Starting IR simulator (manual mode - use 'ir <0-9>' commands)")
-        # In simulation mode, IR only works via manual commands, not random button presses
-        # No thread needed - commands are handled via TUI
+        print("Starting IR simulator (manual mode - use web/API commands)")
+        # In simulation mode, IR only works via manual commands, not random button presses.
+        # No thread needed; commands are handled by the runtime MQTT listener.
         print("IR simulator ready (waiting for manual commands)")
     else:
         from sensors.ir import run_ir_loop, IR

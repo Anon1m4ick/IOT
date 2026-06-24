@@ -40,6 +40,7 @@ class AlarmController:
         self._pin_buffer = ""
         self._ds_state = {"DS1": 0, "DS2": 0}
         self._ds_pressed_since = {"DS1": None, "DS2": None}
+        self._ds_timeout_alarm_sensors = set()
         self._dl_off_deadline = None
         self._dus_history = {"DUS1": deque(), "DUS2": deque()}
         self._siren_stop_event = threading.Event()
@@ -51,6 +52,7 @@ class AlarmController:
         worker.start()
         threads.append(worker)
         self._publish_people_count(self._person_count)
+        self._publish_security_state()
 
     def get_state(self) -> Dict:
         with self._lock:
@@ -69,6 +71,7 @@ class AlarmController:
             self._arming_deadline = time.monotonic() + self.arming_delay_seconds
             self._pin_buffer = ""
         self._emit(f"Security arming started ({int(self.arming_delay_seconds)}s delay)")
+        self._publish_security_state()
 
     def disarm(self):
         with self._lock:
@@ -78,10 +81,13 @@ class AlarmController:
             self._pin_buffer = ""
             self._alarm_active = False
             self._alarm_reason = ""
+            self._ds_timeout_alarm_sensors.clear()
         if was_alarm:
             self._stop_siren()
             self._publish_alarm_state(0)
         self._emit("Security disarmed")
+        self._publish_security_state()
+        self._publish_alarm_reason("")
 
     def trigger_alarm(self, reason: str):
         self._activate_alarm(reason)
@@ -89,6 +95,7 @@ class AlarmController:
     def handle_ds(self, sensor_name: str, state: int):
         state = 1 if int(state) else 0
         now = time.monotonic()
+        should_clear_unlocked_alarm = False
         with self._lock:
             previous = self._ds_state.get(sensor_name, 0)
             self._ds_state[sensor_name] = state
@@ -98,10 +105,15 @@ class AlarmController:
             elif state == 0:
                 self._ds_pressed_since[sensor_name] = None
                 armed = False
+                if sensor_name in self._ds_timeout_alarm_sensors:
+                    self._ds_timeout_alarm_sensors.discard(sensor_name)
+                    should_clear_unlocked_alarm = not self._ds_timeout_alarm_sensors and self._alarm_active
             else:
                 armed = False
         if state != previous:
             self._emit(f"{sensor_name} {'ACTIVE' if state else 'INACTIVE'}")
+        if state == 0 and should_clear_unlocked_alarm:
+            self._deactivate_alarm(f"{sensor_name} changed state")
         if armed:
             self._activate_alarm(f"{sensor_name} triggered while system armed")
 
@@ -223,6 +235,7 @@ class AlarmController:
                 for name, since in self._ds_pressed_since.items():
                     if isinstance(since, (int, float)) and (now - since) >= self.ds_open_timeout_seconds:
                         self._ds_pressed_since[name] = "triggered"
+                        self._ds_timeout_alarm_sensors.add(name)
                         alarm_reasons.append(f"{name} active > {int(self.ds_open_timeout_seconds)}s (door unlocked)")
                 if self._dl_off_deadline is not None and now >= self._dl_off_deadline:
                     self._dl_off_deadline = None
@@ -230,6 +243,7 @@ class AlarmController:
 
             if arm_completed:
                 self._emit("Security system ARMED")
+                self._publish_security_state()
             for reason in alarm_reasons:
                 self._activate_alarm(reason)
             if turn_dl_off:
@@ -263,12 +277,31 @@ class AlarmController:
         with self._lock:
             if self._alarm_active:
                 self._alarm_reason = reason
-                return
-            self._alarm_active = True
-            self._alarm_reason = reason
+                already_active = True
+            else:
+                self._alarm_active = True
+                self._alarm_reason = reason
+                already_active = False
+        if already_active:
+            self._publish_alarm_reason(reason)
+            return
         self._emit(f"ALARM ACTIVATED: {reason}")
         self._start_siren()
         self._publish_alarm_state(1)
+        self._publish_alarm_reason(reason)
+        self._publish_security_state()
+
+    def _deactivate_alarm(self, reason: str):
+        with self._lock:
+            if not self._alarm_active:
+                return
+            self._alarm_active = False
+            self._alarm_reason = ""
+        self._stop_siren()
+        self._emit(f"ALARM DEACTIVATED: {reason}")
+        self._publish_alarm_state(0)
+        self._publish_alarm_reason("")
+        self._publish_security_state()
 
     def _start_siren(self):
         if "DB" not in self.actuators:
@@ -307,12 +340,27 @@ class AlarmController:
         try:
             actuator["set_state"](1 if state else 0)
             self._emit(f"DL {'ON' if state else 'OFF'} (alarm logic)")
+            if self.mqtt_publisher:
+                self.mqtt_publisher.add_sensor_data("DL", int(1 if state else 0), actuator.get("simulated", True))
         except Exception as exc:
             self._emit(f"DL control error: {exc}")
 
     def _publish_alarm_state(self, state: int):
         if self.mqtt_publisher:
             self.mqtt_publisher.add_sensor_data("ALARM", int(state), self.simulated)
+
+    def _publish_alarm_reason(self, reason: str):
+        if self.mqtt_publisher:
+            self.mqtt_publisher.add_sensor_data("ALARM_REASON", str(reason), self.simulated)
+
+    def _publish_security_state(self):
+        if not self.mqtt_publisher:
+            return
+        with self._lock:
+            armed = 1 if self._security_armed else 0
+            arming = 1 if self._arming_deadline is not None else 0
+        self.mqtt_publisher.add_sensor_data("ALARM_ARMED", armed, self.simulated)
+        self.mqtt_publisher.add_sensor_data("ALARM_ARMING", arming, self.simulated)
 
     def _publish_people_count(self, count: int):
         if not self.mqtt_publisher:

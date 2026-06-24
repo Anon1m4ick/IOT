@@ -1,6 +1,6 @@
 """
 USB camera module wrapper for MJPG streamer.
-Provides optional process control and stream URL access for TUI/web layers.
+Provides optional process control and stream URL access for runtime/web layers.
 """
 import subprocess
 import threading

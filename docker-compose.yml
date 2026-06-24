@@ -2,6 +2,52 @@
 # Запуск: docker compose up -d
 
 services:
+  iot-app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: iot-pi-app
+    stdin_open: true
+    tty: true
+    environment:
+      PYTHONPATH: /app/docker/rpi_gpio_compat:/app/src
+      RPI_GPIO_COMPAT: "1"
+      PYTHONUNBUFFERED: "1"
+      TERM: xterm-256color
+      IOT_MQTT_HOST: mosquitto
+      IOT_MQTT_PORT: "1883"
+      IOT_INFLUXDB_URL: http://influxdb:8086
+    volumes:
+      - ./:/app
+    depends_on:
+      - mosquitto
+    networks:
+      - iot-net
+    command: ["python", "src/main.py"]
+
+  iot-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: iot-web-app
+    environment:
+      PYTHONPATH: /app/src
+      PYTHONUNBUFFERED: "1"
+      IOT_MQTT_HOST: mosquitto
+      IOT_MQTT_PORT: "1883"
+      IOT_INFLUXDB_URL: http://influxdb:8086
+      GRAFANA_URL: http://localhost:3000
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:5001:5001"
+    depends_on:
+      - mosquitto
+      - influxdb
+    networks:
+      - iot-net
+    command: ["python", "src/server.py"]
+
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: iot-mosquitto
@@ -48,43 +94,6 @@ services:
     depends_on:
       - influxdb
     restart: unless-stopped
-
-  server:
-    build: .
-    container_name: iot-server
-    command: python src/server.py
-    environment:
-      SETTINGS_PATH: docker/settings.docker.json
-      MQTT_BROKER_HOST: mosquitto
-      INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: iot-influx-token
-      GRAFANA_URL: http://localhost:3000
-    ports:
-      - "127.0.0.1:5001:5001"
-    networks:
-      - iot-net
-    depends_on:
-      - mosquitto
-      - influxdb
-    restart: unless-stopped
-
-  # Headless PI application (all devices simulated). This reproduces the real
-  # Raspberry Pi: it only works because MQTT_BROKER_HOST points at the broker
-  # service. Set it to "localhost" to reproduce the "Pi sends nothing" bug.
-  app:
-    build: .
-    container_name: iot-app
-    command: python src/main.py --headless
-    environment:
-      SETTINGS_PATH: docker/settings.docker.json
-      HEADLESS: "1"
-      MQTT_BROKER_HOST: mosquitto
-    networks:
-      - iot-net
-    depends_on:
-      - mosquitto
-    restart: unless-stopped
-
 
 volumes:
   influxdb-data:

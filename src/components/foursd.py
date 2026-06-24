@@ -1,6 +1,6 @@
 """
 4SD (Kitchen 4-digit 7-segment display) timer component.
-Supports simulated and real hardware modes and exposes control handlers for the TUI/web layer.
+Supports simulated and real hardware modes and exposes control handlers for the runtime/web layer.
 """
 import threading
 import time
@@ -37,6 +37,7 @@ class FourSDTimerController:
         self._last_blink_toggle = time.monotonic()
         self._last_render = None
         self._last_reported_remaining = None
+        self._last_reported_state = None
 
         self._display = self._create_display(settings)
 
@@ -101,6 +102,7 @@ class FourSDTimerController:
     def set_button_add_seconds(self, seconds: int):
         self.button_add_seconds = max(0, int(seconds))
         self.callback(f"BTN add seconds set to {self.button_add_seconds}")
+        self._publish_state(force=True)
 
     def trigger_expired_blink(self):
         with self._lock:
@@ -180,11 +182,27 @@ class FourSDTimerController:
     def _publish_state(self, force: bool = False):
         if not self.mqtt_publisher:
             return
-        remaining = self.get_state()["remaining_seconds"]
+        state = self.get_state()
+        remaining = state["remaining_seconds"]
         if not force and remaining == self._last_reported_remaining:
-            return
+            state_key = (
+                state["remaining_seconds"],
+                state["running"],
+                state["expired_blinking"],
+                state["button_add_seconds"],
+            )
+            if state_key == self._last_reported_state:
+                return
+        state_key = (
+            state["remaining_seconds"],
+            state["running"],
+            state["expired_blinking"],
+            state["button_add_seconds"],
+        )
         self._last_reported_remaining = remaining
+        self._last_reported_state = state_key
         self.mqtt_publisher.add_sensor_data("4SD", remaining, self.simulated)
+        self.mqtt_publisher.add_sensor_data("4SD_STATE", state, self.simulated)
 
 
 def run_4sd(settings, threads, stop_event, callback=None, mqtt_publisher=None):

@@ -6,74 +6,94 @@
   <title>Smart Home Dashboard</title>
   <style>
     :root {
-      --bg: #f4f2ec;
-      --panel: #fffdf8;
-      --line: #d9d3c6;
-      --ink: #1f2a2b;
-      --muted: #5e6a6c;
-      --ok: #1f7a49;
-      --danger: #b83030;
-      --warn: #b57a20;
+      --bg: #edf1f4;
+      --panel: #ffffff;
+      --panel-soft: #f7f9fb;
+      --line: #cfd7df;
+      --ink: #172026;
+      --muted: #64717d;
+      --accent: #176b87;
+      --ok: #177245;
+      --danger: #b4232a;
+      --warn: #9a6500;
+      --blue-soft: #e6f3f8;
+      --green-soft: #e8f5ee;
+      --red-soft: #fdebed;
+      --yellow-soft: #fff5db;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, sans-serif;
-      background: linear-gradient(160deg, #efeade 0%, #f8f5ee 55%, #ece6d9 100%);
+      background: var(--bg);
       color: var(--ink);
     }
-    .wrap { max-width: 1200px; margin: 20px auto; padding: 0 14px 20px; }
-    .head { display: flex; justify-content: space-between; align-items: end; gap: 10px; margin-bottom: 12px; }
-    h1 { margin: 0; font-size: 1.65rem; }
+    .wrap { max-width: 1320px; margin: 16px auto; padding: 0 14px 24px; }
+    .head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 1.55rem; letter-spacing: 0; }
+    h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: 0; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-top: 3px; }
     .badge {
-      border-radius: 999px;
+      border-radius: 8px;
       border: 1px solid var(--line);
-      padding: 7px 12px;
-      font-weight: 700;
+      padding: 7px 10px;
+      font-weight: 800;
       font-size: 0.86rem;
-      background: #eef3eb;
-      color: #205f3e;
+      background: var(--green-soft);
+      color: var(--ok);
+      white-space: nowrap;
     }
-    .badge.active { background: #ffe8e8; color: #8d2424; border-color: #edc0c0; }
-    .hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 10px; }
+    .badge.active { background: var(--red-soft); color: var(--danger); border-color: #f0b8bd; }
     .status {
       margin-bottom: 10px;
       border: 1px solid var(--line);
-      background: #fbf8ef;
-      border-radius: 10px;
+      background: var(--panel);
+      border-radius: 8px;
       padding: 8px 10px;
       font-size: 0.9rem;
     }
+    .status.error { background: var(--red-soft); border-color: #efb6bc; color: var(--danger); }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 8px;
       padding: 12px;
-      box-shadow: 0 8px 20px rgba(31, 42, 43, 0.06);
+      box-shadow: 0 4px 14px rgba(23, 32, 38, 0.05);
     }
-    .card h2 { margin: 0 0 10px; font-size: 1.02rem; }
-    .alarm { grid-column: span 5; }
+    .summary { grid-column: span 12; }
+    .alarm { grid-column: span 4; }
     .timer { grid-column: span 4; }
-    .brgb { grid-column: span 3; }
-    .climate { grid-column: span 6; }
-    .links { grid-column: span 6; }
+    .brgb { grid-column: span 4; }
+    .camera { grid-column: span 7; }
+    .climate { grid-column: span 5; }
+    .elements { grid-column: span 8; }
+    .demo { grid-column: span 4; }
     .notif { grid-column: span 12; }
-    .kv { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #ece4d4; }
-    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-    input, button {
+    .summary-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    .metric { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: 9px; min-height: 62px; }
+    .metric span { display: block; color: var(--muted); font-size: 0.78rem; margin-bottom: 4px; }
+    .metric strong { display: block; font-size: 1rem; overflow-wrap: anywhere; }
+    .kv { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #e8edf2; }
+    .kv span:last-child, .kv strong { text-align: right; overflow-wrap: anywhere; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; align-items: center; }
+    input, select, button {
       font: inherit;
       border: 1px solid var(--line);
-      border-radius: 9px;
+      border-radius: 8px;
       padding: 8px 10px;
       background: #fff;
       color: var(--ink);
+      max-width: 100%;
     }
-    button { cursor: pointer; font-weight: 700; }
-    .danger { background: #ffe8e8; border-color: #efbcbc; }
-    .ok { background: #e5f4ea; border-color: #bfdfca; }
-    .warn { background: #fff3de; border-color: #e8cf9f; }
-    .pin-panel { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fcf9f2; }
+    input[type="number"] { width: 136px; }
+    button { cursor: pointer; font-weight: 700; min-height: 38px; }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .primary { background: var(--blue-soft); border-color: #a7cbd8; color: #114f66; }
+    .danger { background: var(--red-soft); border-color: #efb6bc; color: var(--danger); }
+    .ok { background: var(--green-soft); border-color: #b7dec8; color: var(--ok); }
+    .warn { background: var(--yellow-soft); border-color: #ead18c; color: var(--warn); }
+    .pin-panel { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--panel-soft); }
     .pin-display {
       width: 100%;
       text-align: center;
@@ -82,212 +102,488 @@
       margin-bottom: 8px;
       background: #fff;
     }
-    .pin-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-bottom: 8px;
-    }
+    .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
     .pin-grid button { padding: 10px; }
     .mono { font-family: "Consolas", "JetBrains Mono", monospace; }
-    .notif-list {
+    .swatch { width: 38px; height: 38px; padding: 0; color: transparent; border-width: 2px; }
+    .swatch.active { outline: 3px solid #172026; outline-offset: 1px; }
+    .swatch.off { background: #ffffff; color: #172026; width: auto; padding: 8px 10px; }
+    .white { background: #ffffff; }
+    .red { background: #d92832; }
+    .green { background: #158a4a; }
+    .blue { background: #1f66d1; }
+    .yellow { background: #f1c232; }
+    .purple { background: #7c3fb1; }
+    .light_blue { background: #47bfd6; }
+    .camera-frame {
+      width: 100%;
+      aspect-ratio: 16 / 9;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #fcfaf4;
-      max-height: 260px;
-      overflow: auto;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #111820;
     }
-    .notif-line { padding: 7px 10px; border-bottom: 1px solid #ede7d9; font-size: 0.92rem; }
+    .camera-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { padding: 7px 8px; border-bottom: 1px solid #e6ecf1; text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: var(--panel-soft); font-size: 0.78rem; }
+    td:last-child { overflow-wrap: anywhere; }
+    .notif-list { border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); max-height: 240px; overflow: auto; }
+    .notif-line { padding: 7px 10px; border-bottom: 1px solid #e3e9ef; font-size: 0.9rem; }
     .notif-line:last-child { border-bottom: 0; }
     .critical { color: var(--danger); font-weight: 800; }
     .warning { color: var(--warn); font-weight: 700; }
     .success { color: var(--ok); font-weight: 700; }
-    a { color: #0f5f91; text-decoration: none; font-weight: 700; }
+    a { color: var(--accent); text-decoration: none; font-weight: 700; }
     a:hover { text-decoration: underline; }
-    @media (max-width: 980px) {
-      .alarm, .timer, .brgb, .climate, .links, .notif { grid-column: span 12; }
+    @media (max-width: 1100px) {
+      .alarm, .timer, .brgb, .camera, .climate, .elements, .demo { grid-column: span 12; }
+      .summary-row { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 680px) {
+      .head { align-items: start; flex-direction: column; }
+      .summary-row { grid-template-columns: repeat(2, 1fr); }
+      input[type="number"] { width: 100%; }
+      button, select { width: 100%; }
     }
   </style>
 </head>
 <body>
+  <script id="dashboard-config" type="application/json">
+    {{ {
+      "camera_enabled": camera_enabled,
+      "camera_stream_url": camera_stream_url,
+      "camera_page_url": camera_page_url,
+      "grafana_url": grafana_url,
+      "control_topic": control_topic
+    } | tojson }}
+  </script>
+
   <div class="wrap">
     <div class="head">
       <div>
         <h1>Smart Home Web Panel</h1>
-        <div class="hint">Alarm, timer, BRGB control. Camera stream is only on <span class="mono">/camera</span>. Grafana data is viewed only in Grafana.</div>
+        <div class="sub">MQTT control topic: <span id="controlTopic" class="mono">{{ control_topic }}</span></div>
       </div>
-      <div class="badge {% if state.alarm_active %}active{% endif %}">
-        ALARM: {% if state.alarm_active %}ACTIVE{% else %}INACTIVE{% endif %}
-      </div>
+      <div id="alarmBadge" class="badge">ALARM: INACTIVE</div>
     </div>
 
-    {% if status %}
-    <div class="status">
-      Status: {{ status }}
-    </div>
-    {% endif %}
+    <div id="statusLine" class="status">Loading dashboard state...</div>
 
     <div class="grid">
+      <section class="card summary">
+        <div class="summary-row">
+          <div class="metric"><span>Security</span><strong id="securityState">-</strong></div>
+          <div class="metric"><span>People</span><strong id="peopleCount">0</strong></div>
+          <div class="metric"><span>4SD</span><strong id="timerSummary">0s</strong></div>
+          <div class="metric"><span>BRGB</span><strong id="brgbSummary">OFF</strong></div>
+          <div class="metric"><span>DL</span><strong id="dlSummary">No data</strong></div>
+          <div class="metric"><span>Camera</span><strong id="cameraSummary">Stopped</strong></div>
+        </div>
+      </section>
+
       <section class="card alarm">
         <h2>Alarm / Security</h2>
-        <div class="kv"><span>People count</span><strong>{{ state.person_count if state.person_count is not none else 0 }}</strong></div>
-        <div class="kv"><span>Timer remaining</span><strong class="mono">{{ state.timer_remaining_seconds if state.timer_remaining_seconds is not none else 0 }}s</strong></div>
-
+        <div class="kv"><span>Armed</span><strong id="alarmArmed">NO</strong></div>
+        <div class="kv"><span>Arming</span><strong id="alarmArming">NO</strong></div>
+        <div class="kv"><span>Reason</span><span id="alarmReason">-</span></div>
         <div class="row">
-          <form action="/dashboard/alarm/arm" method="post"><button class="warn" type="submit">Arm (+10s delay)</button></form>
-          <form action="/dashboard/alarm/disarm" method="post"><button class="ok" type="submit">Disarm</button></form>
-          <form action="/dashboard/alarm/trigger" method="post">
-            <input type="hidden" name="reason" value="Web manual trigger" />
-            <button class="danger" type="submit">Trigger</button>
-          </form>
+          <button class="warn" type="button" data-command="alarm_arm">Arm</button>
+          <button class="ok" type="button" data-command="alarm_disarm">Disarm</button>
+          <button class="danger" type="button" data-command="alarm_trigger" data-payload='{"reason":"Web manual trigger"}'>Trigger</button>
         </div>
 
         <div class="pin-panel">
-          <form id="pinForm" action="/dashboard/alarm/pin" method="post">
-            <input id="pinValue" class="pin-display mono" name="pin" type="text" maxlength="4" value="" readonly placeholder="----" />
-            <div class="pin-grid">
-              <button type="button" onclick="pinTap('1')">1</button>
-              <button type="button" onclick="pinTap('2')">2</button>
-              <button type="button" onclick="pinTap('3')">3</button>
-              <button type="button" onclick="pinTap('4')">4</button>
-              <button type="button" onclick="pinTap('5')">5</button>
-              <button type="button" onclick="pinTap('6')">6</button>
-              <button type="button" onclick="pinTap('7')">7</button>
-              <button type="button" onclick="pinTap('8')">8</button>
-              <button type="button" onclick="pinTap('9')">9</button>
-              <button type="button" onclick="pinClear()">*</button>
-              <button type="button" onclick="pinTap('0')">0</button>
-              <button type="button" onclick="pinBack()">#</button>
-            </div>
-            <div class="row">
-              <button class="ok" type="submit">Submit PIN</button>
-              <button type="button" onclick="pinClear()">Clear</button>
-            </div>
-          </form>
+          <input id="pinValue" class="pin-display mono" type="text" maxlength="4" value="" readonly placeholder="----" />
+          <div class="pin-grid">
+            <button type="button" data-pin="1">1</button>
+            <button type="button" data-pin="2">2</button>
+            <button type="button" data-pin="3">3</button>
+            <button type="button" data-pin="4">4</button>
+            <button type="button" data-pin="5">5</button>
+            <button type="button" data-pin="6">6</button>
+            <button type="button" data-pin="7">7</button>
+            <button type="button" data-pin="8">8</button>
+            <button type="button" data-pin="9">9</button>
+            <button type="button" data-pin-clear>*</button>
+            <button type="button" data-pin="0">0</button>
+            <button type="button" data-pin-back>#</button>
+          </div>
+          <div class="row">
+            <button class="ok" type="button" id="submitPin">Submit PIN</button>
+            <button type="button" data-pin-clear>Clear</button>
+          </div>
         </div>
       </section>
 
       <section class="card timer">
-        <h2>Kitchen Timer (4SD)</h2>
-        <div class="kv"><span>Remaining</span><strong class="mono">{{ state.timer_remaining_seconds if state.timer_remaining_seconds is not none else 0 }}s</strong></div>
+        <h2>Kitchen Stopwatch (4SD)</h2>
+        <div class="kv"><span>Remaining</span><strong id="timerRemaining" class="mono">0s</strong></div>
+        <div class="kv"><span>Running</span><strong id="timerRunning">NO</strong></div>
+        <div class="kv"><span>Blinking</span><strong id="timerBlinking">NO</strong></div>
+        <div class="kv"><span>BTN add</span><strong id="timerButtonAdd">0s</strong></div>
         <div class="row">
-          <form action="/dashboard/timer/set" method="post">
-            <input type="number" name="seconds" min="0" step="1" placeholder="Set seconds" required />
-            <button type="submit">Set</button>
-          </form>
+          <input id="timerSetSeconds" type="number" min="0" step="1" placeholder="Seconds" />
+          <button class="primary" type="button" id="timerSet">Set</button>
         </div>
         <div class="row">
-          <form action="/dashboard/timer/start" method="post"><button type="submit">Start</button></form>
-          <form action="/dashboard/timer/stop" method="post"><button type="submit">Stop</button></form>
+          <button type="button" data-command="timer_start">Start</button>
+          <button type="button" data-command="timer_stop">Stop</button>
+          <button class="warn" type="button" data-command="timer_blink">Blink 00:00</button>
         </div>
         <div class="row">
-          <form action="/dashboard/timer/add" method="post">
-            <input type="number" name="seconds" min="0" step="1" placeholder="Add seconds (optional)" />
-            <button type="submit">Add</button>
-          </form>
+          <input id="timerAddSeconds" type="number" min="0" step="1" placeholder="Add seconds" />
+          <button type="button" id="timerAdd">Add</button>
         </div>
         <div class="row">
-          <form action="/dashboard/timer/button_add" method="post">
-            <input type="number" name="seconds" min="0" step="1" placeholder="BTN add N seconds" required />
-            <button type="submit">Save BTN N</button>
-          </form>
-        </div>
-        <div class="row">
-          <form action="/dashboard/timer/button" method="post"><button type="submit">BTN Press</button></form>
+          <input id="timerButtonSeconds" type="number" min="0" step="1" placeholder="BTN N" />
+          <button type="button" id="timerButtonAddSet">Save BTN N</button>
+          <button type="button" data-command="timer_button">BTN Press</button>
         </div>
       </section>
 
       <section class="card brgb">
-        <h2>BRGB</h2>
-        <div class="kv"><span>Current color</span><strong>{{ state.brgb_color if state.brgb_color else 'OFF' }}</strong></div>
+        <h2>BRGB / Door Outputs</h2>
+        <div class="kv"><span>BRGB color</span><strong id="brgbColor">OFF</strong></div>
+        <div id="brgbSwatches" class="row"></div>
+        <div id="irButtons" class="row"></div>
         <div class="row">
-          {% for b in ['0','1','2','3','4','5','6','7','8','9'] %}
-          <form action="/dashboard/brgb" method="post">
-            <input type="hidden" name="button" value="{{ b }}" />
-            <button type="submit">{{ b }}</button>
-          </form>
-          {% endfor %}
+          <button class="ok" type="button" data-command="dl_set" data-payload='{"state":"on"}'>DL ON</button>
+          <button type="button" data-command="dl_set" data-payload='{"state":"off"}'>DL OFF</button>
         </div>
         <div class="row">
-          <form action="/dashboard/dl" method="post">
-            <input type="hidden" name="state" value="on" />
-            <button type="submit">DL ON</button>
-          </form>
-          <form action="/dashboard/dl" method="post">
-            <input type="hidden" name="state" value="off" />
-            <button type="submit">DL OFF</button>
-          </form>
+          <input id="dbFrequency" type="number" min="1" step="1" value="1000" />
+          <input id="dbDuration" type="number" min="0.1" step="0.1" value="1" />
+          <button class="danger" type="button" id="dbActivate">DB Activate</button>
         </div>
+      </section>
+
+      <section class="card camera">
+        <h2>Camera</h2>
+        <div id="cameraArea"></div>
       </section>
 
       <section class="card climate">
-        <h2>DHT Sensors (LCD source)</h2>
-        <div class="kv"><span>DHT1</span><span>T={{ dht.get('DHT1', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT1', {}).get('humidity', '-') }}%</span></div>
-        <div class="kv"><span>DHT2</span><span>T={{ dht.get('DHT2', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT2', {}).get('humidity', '-') }}%</span></div>
-        <div class="kv"><span>DHT3</span><span>T={{ dht.get('DHT3', {}).get('temperature', '-') }} deg C, H={{ dht.get('DHT3', {}).get('humidity', '-') }}%</span></div>
+        <h2>DHT / LCD</h2>
+        <div class="kv"><span>DHT1</span><span id="dht1">-</span></div>
+        <div class="kv"><span>DHT2</span><span id="dht2">-</span></div>
+        <div class="kv"><span>DHT3</span><span id="dht3">-</span></div>
+        <div class="kv"><span>LCD rotation</span><span>DHT1 -> DHT2 -> DHT3</span></div>
       </section>
 
-      <section class="card links">
-        <h2>External Views</h2>
+      <section class="card elements">
+        <h2>System Elements</h2>
+        <table>
+          <thead>
+            <tr><th>PI</th><th>Code</th><th>Name</th><th>Kind</th><th>Simulated</th><th>Value</th></tr>
+          </thead>
+          <tbody id="elementsTable"></tbody>
+        </table>
+      </section>
+
+      <section class="card demo">
+        <h2>Manual Demo Triggers</h2>
+        <div id="demoPir" class="row"></div>
+        <div id="demoDs" class="row"></div>
         <div class="row">
-          <a href="{{ grafana_url }}" target="_blank" rel="noopener">Open Grafana</a>
+          <button class="danger" type="button" data-command="demo_gsg">GSG Movement</button>
         </div>
-        <div class="row">
-          {% if camera_enabled %}
-          <a href="{{ camera_page_url }}" target="_blank" rel="noopener">Open Camera Page (/camera)</a>
-          {% else %}
-          <span>Camera not configured.</span>
-          {% endif %}
-        </div>
-        <div class="row">
-          <form action="/dashboard/camera/start" method="post"><button type="submit">Start Camera</button></form>
-          <form action="/dashboard/camera/stop" method="post"><button type="submit">Stop Camera</button></form>
-        </div>
+        <div id="demoPerson" class="row"></div>
       </section>
 
       <section class="card notif">
         <h2>Notifications</h2>
-        <div class="notif-list">
-          {% if notifications %}
-            {% for n in notifications %}
-            <div class="notif-line {{ n.level|default('info') }}">
-              [{{ n.timestamp }}] {{ n.message }}
-            </div>
-            {% endfor %}
-          {% else %}
-            <div class="notif-line">No notifications yet</div>
-          {% endif %}
-        </div>
+        <div id="notifications" class="notif-list"></div>
       </section>
     </div>
   </div>
 
   <script>
-    const pinInput = document.getElementById("pinValue");
+    const config = JSON.parse(document.getElementById("dashboard-config").textContent);
+    const app = {
+      snapshot: {
+        state: {{ state | tojson }},
+        latest_sensors: {{ latest_sensors | tojson }},
+        dht: {{ dht | tojson }},
+        system_elements: {{ system_elements | tojson }},
+        notifications: {{ notifications | tojson }},
+        control_topic: {{ control_topic | tojson }}
+      },
+      busy: false,
+      lastPollError: "",
+      pin: ""
+    };
 
-    function pinTap(digit) {
-      if (!pinInput) return;
-      if (pinInput.value.length >= 4) return;
-      pinInput.value += digit;
+    const colors = ["OFF", "WHITE", "RED", "GREEN", "BLUE", "YELLOW", "PURPLE", "LIGHT_BLUE"];
+    const irButtons = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+    const $ = (id) => document.getElementById(id);
+
+    function text(id, value) {
+      const el = $(id);
+      if (el) el.textContent = value;
     }
 
-    function pinBack() {
-      if (!pinInput) return;
-      pinInput.value = pinInput.value.slice(0, -1);
+    function yesNo(value) {
+      return value ? "YES" : "NO";
     }
 
-    function pinClear() {
-      if (!pinInput) return;
-      pinInput.value = "";
-    }
-
-    setInterval(() => {
-      const active = document.activeElement;
-      const safeToReload = !active || (active.id !== "pinValue");
-      if (safeToReload && pinInput && pinInput.value.length === 0) {
-        window.location.reload();
+    function valueText(value) {
+      if (value === null || value === undefined || value === "") return "-";
+      if (typeof value === "boolean") return value ? "ON" : "OFF";
+      if (typeof value === "object") {
+        return Object.entries(value).map(([key, val]) => `${key}=${valueText(val)}`).join(", ");
       }
-    }, 5000);
+      return String(value);
+    }
+
+    function html(value) {
+      return valueText(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function dhtText(item) {
+      const temp = item && item.temperature !== null && item.temperature !== undefined ? item.temperature : "-";
+      const hum = item && item.humidity !== null && item.humidity !== undefined ? item.humidity : "-";
+      return `T=${temp} deg C, H=${hum}%`;
+    }
+
+    function simulatedText(value) {
+      if (value === null || value === undefined) return "-";
+      return value ? "YES" : "NO";
+    }
+
+    function numberInput(id, fallback) {
+      const raw = ($(id)?.value || "").trim();
+      if (!raw) return fallback;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function renderStatus(message, isError = false) {
+      const status = $("statusLine");
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+    }
+
+    function setBusy(value) {
+      app.busy = value;
+      document.querySelectorAll("button").forEach((button) => {
+        button.disabled = value;
+      });
+    }
+
+    async function refreshDashboard(silent = false) {
+      try {
+        const response = await fetch("/api/dashboard", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || data.status || "Dashboard refresh failed");
+        }
+        app.snapshot = data;
+        app.lastPollError = "";
+        render();
+        if (!silent && !app.busy) {
+          renderStatus("Dashboard state updated.");
+        }
+      } catch (error) {
+        app.lastPollError = error.message || String(error);
+        renderStatus(`Dashboard refresh failed: ${app.lastPollError}`, true);
+      }
+    }
+
+    async function sendCommand(action, payload = {}) {
+      if (!action || app.busy) return;
+      setBusy(true);
+      renderStatus(`Sending ${action}...`);
+      try {
+        const response = await fetch("/api/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, payload })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || data.status || "Command failed");
+        }
+        renderStatus(`Command sent: ${action}`);
+        await refreshDashboard(true);
+      } catch (error) {
+        renderStatus(`Command failed: ${error.message || error}`, true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function commandFromDataset(button) {
+      const action = button.dataset.command;
+      const payload = button.dataset.payload ? JSON.parse(button.dataset.payload) : {};
+      sendCommand(action, payload);
+    }
+
+    function renderStaticControls() {
+      const swatches = $("brgbSwatches");
+      swatches.innerHTML = colors.map((color) => {
+        const className = color.toLowerCase();
+        return `<button class="swatch ${className}" type="button" data-command="brgb_color" data-payload='{"color":"${color}"}' title="${color}">${color}</button>`;
+      }).join("");
+
+      $("irButtons").innerHTML = irButtons.map((button) =>
+        `<button type="button" data-command="brgb_button" data-payload='{"button":"${button}"}'>IR ${button}</button>`
+      ).join("");
+
+      $("demoPir").innerHTML = ["DPIR1", "DPIR2", "DPIR3"].map((sensor) =>
+        `<button class="warn" type="button" data-command="demo_pir" data-payload='{"sensor":"${sensor}"}'>${sensor} Motion</button>`
+      ).join("");
+
+      $("demoDs").innerHTML = ["DS1", "DS2"].map((sensor) =>
+        `<button class="danger" type="button" data-command="demo_ds" data-payload='{"sensor":"${sensor}","state":"1"}'>${sensor} Active</button>` +
+        `<button type="button" data-command="demo_ds" data-payload='{"sensor":"${sensor}","state":"0"}'>${sensor} Clear</button>`
+      ).join("");
+
+      $("demoPerson").innerHTML = ["1", "2"].flatMap((doorway) =>
+        ["enter", "exit"].map((direction) =>
+          `<button class="primary" type="button" data-command="demo_person" data-payload='{"doorway":"${doorway}","direction":"${direction}"}'>Door ${doorway} ${direction}</button>`
+        )
+      ).join("");
+
+      const cameraArea = $("cameraArea");
+      if (config.camera_enabled) {
+        cameraArea.innerHTML = `
+          <div class="camera-frame">
+            <img src="${config.camera_stream_url}" alt="Camera stream" />
+          </div>
+          <div class="row">
+            <button class="ok" type="button" data-command="camera_start">Start Camera</button>
+            <button type="button" data-command="camera_stop">Stop Camera</button>
+            <a href="${config.camera_page_url}" target="_blank" rel="noopener">Open Camera Page</a>
+            <a href="${config.grafana_url}" target="_blank" rel="noopener">Open Grafana</a>
+          </div>`;
+      } else {
+        cameraArea.innerHTML = `<div class="status">Camera not configured.</div>`;
+      }
+    }
+
+    function render() {
+      const snapshot = app.snapshot || {};
+      const state = snapshot.state || {};
+      const dht = snapshot.dht || {};
+      const elements = snapshot.system_elements || [];
+      const notifications = snapshot.notifications || [];
+      const alarmActive = Boolean(state.alarm_active);
+      const alarmBadge = $("alarmBadge");
+
+      alarmBadge.textContent = `ALARM: ${alarmActive ? "ACTIVE" : "INACTIVE"}`;
+      alarmBadge.classList.toggle("active", alarmActive);
+      text("controlTopic", snapshot.control_topic || config.control_topic || "-");
+      text("securityState", state.alarm_armed ? "Armed" : state.alarm_arming ? "Arming" : "Disarmed");
+      text("peopleCount", state.person_count ?? 0);
+      text("timerSummary", `${state.timer_remaining_seconds ?? 0}s${state.timer_running ? " running" : state.timer_blinking ? " blinking" : ""}`);
+      text("brgbSummary", state.brgb_color || "OFF");
+      text("dlSummary", state.dl_state === null || state.dl_state === undefined ? "No data" : state.dl_state ? "ON" : "OFF");
+      text("cameraSummary", state.camera_status && state.camera_status.running ? "Running" : "Stopped");
+      text("alarmArmed", yesNo(state.alarm_armed));
+      text("alarmArming", yesNo(state.alarm_arming));
+      text("alarmReason", state.alarm_reason || "-");
+      text("timerRemaining", `${state.timer_remaining_seconds ?? 0}s`);
+      text("timerRunning", yesNo(state.timer_running));
+      text("timerBlinking", yesNo(state.timer_blinking));
+      text("timerButtonAdd", `${state.timer_button_add_seconds ?? 0}s`);
+      text("brgbColor", state.brgb_color || "OFF");
+      text("dht1", dhtText(dht.DHT1));
+      text("dht2", dhtText(dht.DHT2));
+      text("dht3", dhtText(dht.DHT3));
+
+      document.querySelectorAll("#brgbSwatches .swatch").forEach((button) => {
+        const payload = JSON.parse(button.dataset.payload || "{}");
+        button.classList.toggle("active", payload.color === (state.brgb_color || "OFF"));
+      });
+
+      $("pinValue").value = app.pin;
+      $("elementsTable").innerHTML = elements.map((item) => `
+        <tr>
+          <td>${html(item.pi)}</td>
+          <td class="mono">${html(item.code)}</td>
+          <td>${html(item.name)}</td>
+          <td>${html(item.kind)}</td>
+          <td>${html(simulatedText(item.simulated))}</td>
+          <td>${html(item.value)}</td>
+        </tr>
+      `).join("");
+
+      $("notifications").innerHTML = notifications.length
+        ? notifications.map((item) => `<div class="notif-line ${html(item.level || "info")}">[${html(item.timestamp || "-")}] ${html(item.message)}</div>`).join("")
+        : `<div class="notif-line">No notifications yet</div>`;
+    }
+
+    document.addEventListener("click", (event) => {
+      const pin = event.target.closest("[data-pin]");
+      if (pin) {
+        if (app.pin.length < 4) app.pin += pin.dataset.pin;
+        render();
+        return;
+      }
+
+      if (event.target.closest("[data-pin-back]")) {
+        app.pin = app.pin.slice(0, -1);
+        render();
+        return;
+      }
+
+      if (event.target.closest("[data-pin-clear]")) {
+        app.pin = "";
+        render();
+        return;
+      }
+
+      const commandButton = event.target.closest("[data-command]");
+      if (commandButton) {
+        commandFromDataset(commandButton);
+      }
+    });
+
+    $("submitPin").addEventListener("click", () => {
+      if (!/^\d{4}$/.test(app.pin)) {
+        renderStatus("PIN must be exactly 4 digits.", true);
+        return;
+      }
+      const pin = app.pin;
+      app.pin = "";
+      render();
+      sendCommand("alarm_pin", { pin });
+    });
+
+    $("timerSet").addEventListener("click", () => {
+      sendCommand("timer_set", { seconds: Math.max(0, Math.trunc(numberInput("timerSetSeconds", 0))) });
+    });
+
+    $("timerAdd").addEventListener("click", () => {
+      const seconds = Math.max(0, Math.trunc(numberInput("timerAddSeconds", NaN)));
+      sendCommand("timer_add", Number.isFinite(seconds) ? { seconds } : {});
+    });
+
+    $("timerButtonAddSet").addEventListener("click", () => {
+      sendCommand("timer_set_button_add", { seconds: Math.max(0, Math.trunc(numberInput("timerButtonSeconds", 0))) });
+    });
+
+    $("dbActivate").addEventListener("click", () => {
+      sendCommand("db_activate", {
+        frequency: Math.max(1, Math.trunc(numberInput("dbFrequency", 1000))),
+        duration: Math.max(0.1, numberInput("dbDuration", 1))
+      });
+    });
+
+    renderStaticControls();
+    render();
+    refreshDashboard(true);
+    setInterval(() => {
+      if (!document.hidden && !app.busy) refreshDashboard(true);
+    }, 1000);
   </script>
 </body>
 </html>

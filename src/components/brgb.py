@@ -76,6 +76,7 @@ def run_brgb(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         # For simulator, we just wait - color changes will be triggered by IR
         print("BRGB simulator ready (waiting for IR commands)")
     else:
+        from actuators.brgb import BRGB
         print("Starting BRGB real hardware")
         # Initialize BRGB instance
         red_pin = settings.get('red_pin', 12)

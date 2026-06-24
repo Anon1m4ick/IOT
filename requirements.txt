@@ -1,4 +1,3 @@
-textual
 paho-mqtt
 flask
 influxdb-client

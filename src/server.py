@@ -13,10 +13,16 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 
 class MQTTInfluxDBBridge:
     
-    def __init__(self, mqtt_config: Dict[str, Any], influxdb_config: Dict[str, Any]):
+    def __init__(
+        self,
+        mqtt_config: Dict[str, Any],
+        influxdb_config: Dict[str, Any],
+        configured_simulated: Optional[Dict[str, bool]] = None,
+    ):
 
         self.mqtt_config = mqtt_config
         self.influxdb_config = influxdb_config
+        self.configured_simulated = configured_simulated or {}
         
         
         self.influx_client = None
@@ -34,14 +40,33 @@ class MQTTInfluxDBBridge:
         self.mqtt_lock = threading.Lock()
 
         self.control_topic = str(self.mqtt_config.get("control_topic", "commands/pi1"))
+        self.extra_state_topics = {
+            "ALARM_ARMED": "sensors/alarm_armed",
+            "ALARM_ARMING": "sensors/alarm_arming",
+            "ALARM_REASON": "sensors/alarm_reason",
+            "DL": "sensors/dl",
+            "DB": "sensors/db",
+            "4SD_STATE": "sensors/4sd_state",
+            "CAMERA_STATUS": "sensors/camera_status",
+        }
 
         self.state_lock = threading.Lock()
         self.latest_sensor_values: Dict[str, Any] = {}
+        self.latest_sensor_simulated: Dict[str, Optional[bool]] = {}
         self.notifications = deque(maxlen=200)
         self.state = {
             "alarm_active": False,
+            "alarm_armed": False,
+            "alarm_arming": False,
+            "alarm_reason": "",
             "timer_remaining_seconds": 0,
+            "timer_running": False,
+            "timer_blinking": False,
+            "timer_button_add_seconds": 0,
             "brgb_color": "OFF",
+            "dl_state": None,
+            "camera_status": {},
+            "db_last": {},
             "person_count": 0,
             "updated_at": time.time(),
         }
@@ -64,6 +89,11 @@ class MQTTInfluxDBBridge:
                     for sensor_type, topic in topics.items():
                         client.subscribe(topic, qos=1)
                         print(f"[Server] Subscribed to {topic}")
+                    configured_topics = set(topics.values())
+                    for sensor_type, topic in self.extra_state_topics.items():
+                        if topic not in configured_topics:
+                            client.subscribe(topic, qos=1)
+                            print(f"[Server] Subscribed to {topic}")
                     self.subscribed = True
         else:
             print(f"[Server] MQTT connection failed with code {code}")
@@ -182,6 +212,7 @@ class MQTTInfluxDBBridge:
 
         with self.state_lock:
             self.latest_sensor_values[sensor_type] = value
+            self.latest_sensor_simulated[sensor_type] = data.get("simulated")
             self.state["updated_at"] = timestamp
 
             if sensor_type == "4SD":
@@ -191,6 +222,26 @@ class MQTTInfluxDBBridge:
                     pass
             elif sensor_type == "BRGB":
                 self.state["brgb_color"] = str(value).upper()
+            elif sensor_type == "DL":
+                try:
+                    self.state["dl_state"] = bool(int(float(value)))
+                except Exception:
+                    pass
+            elif sensor_type == "DB":
+                self.state["db_last"] = value if isinstance(value, dict) else {"value": value}
+            elif sensor_type == "4SD_STATE" and isinstance(value, dict):
+                self.state["timer_remaining_seconds"] = int(value.get("remaining_seconds", self.state["timer_remaining_seconds"]))
+                self.state["timer_running"] = bool(value.get("running", False))
+                self.state["timer_blinking"] = bool(value.get("expired_blinking", False))
+                self.state["timer_button_add_seconds"] = int(value.get("button_add_seconds", 0))
+            elif sensor_type == "CAMERA_STATUS" and isinstance(value, dict):
+                self.state["camera_status"] = value
+            elif sensor_type == "ALARM_ARMED":
+                self.state["alarm_armed"] = bool(int(float(value)))
+            elif sensor_type == "ALARM_ARMING":
+                self.state["alarm_arming"] = bool(int(float(value)))
+            elif sensor_type == "ALARM_REASON":
+                self.state["alarm_reason"] = str(value)
             elif sensor_type == "ALARM_PEOPLE":
                 try:
                     self.state["person_count"] = max(0, int(float(value)))
@@ -229,6 +280,7 @@ class MQTTInfluxDBBridge:
     def get_dashboard_state(self) -> Dict[str, Any]:
         with self.state_lock:
             latest = dict(self.latest_sensor_values)
+            simulated = dict(self.latest_sensor_simulated)
             notifications = list(self.notifications)[:50]
             state_snapshot = dict(self.state)
 
@@ -241,13 +293,53 @@ class MQTTInfluxDBBridge:
                 "humidity": latest.get(hum_key),
             }
 
+        system_elements = [
+            {"code": "DS1", "name": "Door sensor 1", "pi": "PI1", "kind": "sensor", "value": latest.get("DS1"), "simulated": self._simulated_flag(simulated, "DS1")},
+            {"code": "DUS1", "name": "Door ultrasonic 1", "pi": "PI1", "kind": "sensor", "value": latest.get("DUS1"), "simulated": self._simulated_flag(simulated, "DUS1")},
+            {"code": "DPIR1", "name": "Door motion 1", "pi": "PI1", "kind": "sensor", "value": latest.get("DPIR1"), "simulated": self._simulated_flag(simulated, "DPIR1")},
+            {"code": "DMS", "name": "Membrane switch", "pi": "PI1", "kind": "sensor", "value": latest.get("DMS"), "simulated": self._simulated_flag(simulated, "DMS")},
+            {"code": "DL", "name": "Door light", "pi": "PI1", "kind": "actuator", "value": state_snapshot.get("dl_state"), "simulated": self._simulated_flag(simulated, "DL")},
+            {"code": "DB", "name": "Door buzzer", "pi": "PI1", "kind": "actuator", "value": state_snapshot.get("db_last"), "simulated": self._simulated_flag(simulated, "DB")},
+            {"code": "WEBC", "name": "Web camera", "pi": "PI1", "kind": "actuator", "value": state_snapshot.get("camera_status"), "simulated": self._simulated_flag(simulated, "CAMERA_STATUS", "CAMERA")},
+            {"code": "DS2", "name": "Door sensor 2", "pi": "PI2", "kind": "sensor", "value": latest.get("DS2"), "simulated": self._simulated_flag(simulated, "DS2")},
+            {"code": "DUS2", "name": "Door ultrasonic 2", "pi": "PI2", "kind": "sensor", "value": latest.get("DUS2"), "simulated": self._simulated_flag(simulated, "DUS2")},
+            {"code": "DPIR2", "name": "Door motion 2", "pi": "PI2", "kind": "sensor", "value": latest.get("DPIR2"), "simulated": self._simulated_flag(simulated, "DPIR2")},
+            {"code": "4SD", "name": "Kitchen stopwatch", "pi": "PI2", "kind": "actuator", "value": latest.get("4SD_STATE", latest.get("4SD")), "simulated": self._simulated_flag(simulated, "4SD_STATE", "4SD")},
+            {"code": "BTN", "name": "Kitchen button", "pi": "PI2", "kind": "sensor", "value": latest.get("BTN"), "simulated": self._simulated_flag(simulated, "BTN")},
+            {"code": "DHT3", "name": "Kitchen DHT", "pi": "PI2", "kind": "sensor", "value": dht.get("DHT3"), "simulated": self._simulated_flag(simulated, "DHT3_TEMPERATURE", "DHT3_HUMIDITY", "DHT3")},
+            {"code": "GSG", "name": "Gyroscope", "pi": "PI2", "kind": "sensor", "value": latest.get("GSG"), "simulated": self._simulated_flag(simulated, "GSG")},
+            {"code": "DHT1", "name": "Bedroom DHT", "pi": "PI3", "kind": "sensor", "value": dht.get("DHT1"), "simulated": self._simulated_flag(simulated, "DHT1_TEMPERATURE", "DHT1_HUMIDITY", "DHT1")},
+            {"code": "DHT2", "name": "Master bedroom DHT", "pi": "PI3", "kind": "sensor", "value": dht.get("DHT2"), "simulated": self._simulated_flag(simulated, "DHT2_TEMPERATURE", "DHT2_HUMIDITY", "DHT2")},
+            {"code": "IR", "name": "Bedroom infrared", "pi": "PI3", "kind": "sensor", "value": latest.get("IR"), "simulated": self._simulated_flag(simulated, "IR")},
+            {"code": "BRGB", "name": "Bedroom RGB", "pi": "PI3", "kind": "actuator", "value": state_snapshot.get("brgb_color"), "simulated": self._simulated_flag(simulated, "BRGB")},
+            {"code": "LCD", "name": "Living room LCD", "pi": "PI3", "kind": "actuator", "value": dht, "simulated": self._simulated_flag(simulated, "LCD")},
+            {"code": "DPIR3", "name": "Living room motion", "pi": "PI3", "kind": "sensor", "value": latest.get("DPIR3"), "simulated": self._simulated_flag(simulated, "DPIR3")},
+            {"code": "ALARM", "name": "Security alarm", "pi": "PI1", "kind": "logic", "value": {
+                "active": state_snapshot.get("alarm_active"),
+                "armed": state_snapshot.get("alarm_armed"),
+                "arming": state_snapshot.get("alarm_arming"),
+                "reason": state_snapshot.get("alarm_reason"),
+            }, "simulated": self._simulated_flag(simulated, "ALARM")},
+        ]
+
         return {
             "state": state_snapshot,
             "latest_sensors": latest,
+            "latest_simulated": simulated,
             "dht": dht,
+            "system_elements": system_elements,
             "notifications": notifications,
             "control_topic": self.control_topic,
         }
+
+    def _simulated_flag(self, latest_simulated: Dict[str, Any], *keys: str) -> Optional[bool]:
+        for key in keys:
+            if latest_simulated.get(key) is not None:
+                return bool(latest_simulated[key])
+        for key in keys:
+            if key in self.configured_simulated:
+                return bool(self.configured_simulated[key])
+        return None
 
     def publish_command(self, action: str, payload: Optional[Dict[str, Any]] = None) -> bool:
         if not self.mqtt_client or not self.connected:
@@ -380,6 +472,14 @@ def _camera_stream_url() -> str:
     return str(cfg.get("stream_url", f"http://localhost:{port}/?action=stream"))
 
 
+def _configured_simulated(settings: Dict[str, Any]) -> Dict[str, bool]:
+    return {
+        name: bool(config["simulated"])
+        for name, config in settings.items()
+        if isinstance(config, dict) and "simulated" in config
+    }
+
+
 @app.route('/health', methods=['GET'])
 def health():
 
@@ -395,38 +495,76 @@ def health():
 def get_sensors():
 
     return jsonify({
-        'sensors': ['DS1', 'DUS1', 'DPIR1', 'DMS']
+        'sensors': [
+            'DS1', 'DS2', 'DUS1', 'DUS2', 'DPIR1', 'DPIR2', 'DPIR3', 'DMS',
+            'DHT1', 'DHT2', 'DHT3', 'GSG', 'IR'
+        ],
+        'actuators': ['DL', 'DB', '4SD', 'BRGB', 'LCD', 'CAMERA', 'ALARM']
     })
+
+
+@app.route('/api/dashboard', methods=['GET'])
+def get_dashboard_snapshot():
+    if not bridge:
+        return jsonify({'status': 'error', 'message': 'bridge is not initialized'}), 503
+    return jsonify({'status': 'ok', **bridge.get_dashboard_state()})
+
+
+@app.route('/api/command', methods=['POST'])
+def send_dashboard_command():
+    data = request.get_json(silent=True) or {}
+    action = str(data.get("action", "")).strip().lower()
+    payload = data.get("payload", {})
+
+    if not action:
+        return jsonify({'status': 'error', 'message': 'action is required'}), 400
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return jsonify({'status': 'error', 'message': 'payload must be an object'}), 400
+
+    ok = _publish_dashboard_command(action, payload)
+    return jsonify({
+        'status': 'success' if ok else 'mqtt_error',
+        'action': action,
+    }), 200 if ok else 503
 
 
 @app.route('/api/actuators/dl', methods=['POST'])
 def control_door_light():
 
     data = request.get_json() or {}
-    state = data.get('state', 'off')
+    state = str(data.get('state', 'off')).strip().lower()
+    if state not in {"on", "off"}:
+        return jsonify({'status': 'error', 'message': 'state must be on or off'}), 400
+    ok = _publish_dashboard_command("dl_set", {"state": state})
     
     return jsonify({
-        'status': 'success',
+        'status': 'success' if ok else 'mqtt_error',
         'actuator': 'DL',
         'state': state,
-        'message': f'Door light set to {state}'
-    })
+        'message': f'Door light command sent: {state}'
+    }), 200 if ok else 503
 
 
 @app.route('/api/actuators/db', methods=['POST'])
 def control_door_buzzer():
 
     data = request.get_json() or {}
-    frequency = data.get('frequency', 1000)
-    duration = data.get('duration', 1)
+    try:
+        frequency = int(data.get('frequency', 1000))
+        duration = float(data.get('duration', 1))
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'frequency and duration must be numbers'}), 400
+    ok = _publish_dashboard_command("db_activate", {"frequency": frequency, "duration": duration})
     
     return jsonify({
-        'status': 'success',
+        'status': 'success' if ok else 'mqtt_error',
         'actuator': 'DB',
         'frequency': frequency,
         'duration': duration,
-        'message': f'Buzzer activated: {frequency}Hz for {duration}s'
-    })
+        'message': f'Buzzer command sent: {frequency}Hz for {duration}s'
+    }), 200 if ok else 503
 
 
 @app.route('/api/camera', methods=['GET'])
@@ -463,13 +601,23 @@ def dashboard_page():
     snapshot = bridge.get_dashboard_state() if bridge else {
         "state": {
             "alarm_active": False,
+            "alarm_armed": False,
+            "alarm_arming": False,
+            "alarm_reason": "",
             "timer_remaining_seconds": 0,
+            "timer_running": False,
+            "timer_blinking": False,
+            "timer_button_add_seconds": 0,
             "brgb_color": "OFF",
+            "dl_state": None,
+            "camera_status": {},
+            "db_last": {},
             "person_count": 0,
             "updated_at": time.time(),
         },
         "latest_sensors": {},
         "dht": {},
+        "system_elements": [],
         "notifications": [],
     }
     status = request.args.get("status", "")
@@ -478,8 +626,11 @@ def dashboard_page():
         state=snapshot.get("state", {}),
         latest_sensors=snapshot.get("latest_sensors", {}),
         dht=snapshot.get("dht", {}),
+        system_elements=snapshot.get("system_elements", []),
         notifications=snapshot.get("notifications", []),
+        control_topic=snapshot.get("control_topic", ""),
         camera_enabled=_camera_enabled(),
+        camera_stream_url=_camera_stream_url() if _camera_enabled() else "",
         camera_page_url=url_for("camera_page"),
         grafana_url=app.config.get("grafana_url", "http://localhost:3000"),
         status=status,
@@ -561,6 +712,12 @@ def dashboard_timer_button():
     return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
 
 
+@app.route('/dashboard/timer/blink', methods=['POST'])
+def dashboard_timer_blink():
+    ok = _publish_dashboard_command("timer_blink")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
 @app.route('/dashboard/timer/button_add', methods=['POST'])
 def dashboard_timer_button_add():
     try:
@@ -580,12 +737,36 @@ def dashboard_brgb():
     return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
 
 
+@app.route('/dashboard/brgb/color', methods=['POST'])
+def dashboard_brgb_color():
+    color = str(request.form.get("color", "")).strip().upper()
+    allowed = {"OFF", "WHITE", "RED", "GREEN", "BLUE", "YELLOW", "PURPLE", "LIGHT_BLUE"}
+    if color not in allowed:
+        return redirect(url_for("dashboard_page", status="invalid_brgb"))
+    ok = _publish_dashboard_command("brgb_color", {"color": color})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
 @app.route('/dashboard/dl', methods=['POST'])
 def dashboard_dl():
     state = str(request.form.get("state", "off")).strip().lower()
     if state not in {"on", "off"}:
         return redirect(url_for("dashboard_page", status="invalid_dl"))
     ok = _publish_dashboard_command("dl_set", {"state": state})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/db', methods=['POST'])
+def dashboard_db():
+    try:
+        frequency = int(request.form.get("frequency", "1000"))
+        duration = float(request.form.get("duration", "1"))
+    except ValueError:
+        return redirect(url_for("dashboard_page", status="invalid_db"))
+    ok = _publish_dashboard_command("db_activate", {
+        "frequency": max(1, frequency),
+        "duration": max(0.1, duration),
+    })
     return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
 
 
@@ -601,20 +782,61 @@ def dashboard_camera_stop():
     return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
 
 
+@app.route('/dashboard/demo/pir', methods=['POST'])
+def dashboard_demo_pir():
+    sensor = str(request.form.get("sensor", "DPIR1")).strip().upper()
+    if sensor not in {"DPIR1", "DPIR2", "DPIR3"}:
+        return redirect(url_for("dashboard_page", status="invalid_demo"))
+    ok = _publish_dashboard_command("demo_pir", {"sensor": sensor})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/demo/ds', methods=['POST'])
+def dashboard_demo_ds():
+    sensor = str(request.form.get("sensor", "DS1")).strip().upper()
+    state = str(request.form.get("state", "1")).strip()
+    if sensor not in {"DS1", "DS2"} or state not in {"0", "1"}:
+        return redirect(url_for("dashboard_page", status="invalid_demo"))
+    ok = _publish_dashboard_command("demo_ds", {"sensor": sensor, "state": state})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/demo/gsg', methods=['POST'])
+def dashboard_demo_gsg():
+    ok = _publish_dashboard_command("demo_gsg")
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
+@app.route('/dashboard/demo/person', methods=['POST'])
+def dashboard_demo_person():
+    doorway = str(request.form.get("doorway", "1")).strip()
+    direction = str(request.form.get("direction", "enter")).strip().lower()
+    if doorway not in {"1", "2"} or direction not in {"enter", "exit"}:
+        return redirect(url_for("dashboard_page", status="invalid_demo"))
+    ok = _publish_dashboard_command("demo_person", {"doorway": doorway, "direction": direction})
+    return redirect(url_for("dashboard_page", status="ok" if ok else "mqtt_error"))
+
+
 def create_app(
     mqtt_config: Dict[str, Any],
     influxdb_config: Dict[str, Any],
     camera_config: Optional[Dict[str, Any]] = None,
+    runtime_settings: Optional[Dict[str, Any]] = None,
 ) -> Flask:
 
     global bridge
     
     if bridge is None:
-        bridge = MQTTInfluxDBBridge(mqtt_config, influxdb_config)
+        bridge = MQTTInfluxDBBridge(
+            mqtt_config,
+            influxdb_config,
+            _configured_simulated(runtime_settings or {}),
+        )
         bridge.connect_influxdb()
         bridge.connect_mqtt()
     else:
         print("[Server] Bridge already initialized, reusing existing connection")
+        bridge.configured_simulated = _configured_simulated(runtime_settings or {})
     
     app.config["camera_config"] = camera_config or {}
     return app
@@ -650,7 +872,7 @@ def main():
         print("Error: MQTT or InfluxDB configuration missing in settings.json")
         sys.exit(1)
     
-    app = create_app(mqtt_config, influxdb_config, camera_config)
+    app = create_app(mqtt_config, influxdb_config, camera_config, settings)
     app.config["grafana_url"] = grafana_url
     
     print("[Server] Starting Flask server on http://localhost:5001")

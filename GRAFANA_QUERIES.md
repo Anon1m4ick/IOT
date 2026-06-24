@@ -178,3 +178,25 @@ from(bucket: "NTP")
   |> filter(fn: (r) => r["_field"] == "value")
   |> aggregateWindow(every: 1m, fn: last, createEmpty: false)
 ```
+
+### ALARM - State and Enter/Exit Events
+
+**Query for ALARM state timeline (0/1):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "sensor_data")
+  |> filter(fn: (r) => r["sensor_type"] == "ALARM")
+  |> filter(fn: (r) => r["_field"] == "value")
+  |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
+```
+
+**Query for ALARM transitions (entered/exited):**
+```flux
+from(bucket: "NTP")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r["_measurement"] == "alarm_events")
+  |> filter(fn: (r) => r["_field"] == "alarm_state")
+  |> keep(columns: ["_time", "_value", "event_type", "pi_id", "device_name"])
+  |> sort(columns: ["_time"], desc: true)
+```

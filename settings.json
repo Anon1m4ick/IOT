@@ -28,21 +28,23 @@
             "IR": "sensors/ir",
             "BRGB": "sensors/brgb",
             "4SD": "sensors/4sd",
-            "ALARM": "sensors/alarm"
+            "ALARM": "sensors/alarm",
+            "ALARM_PEOPLE": "sensors/alarm_people"
         },
+        "control_topic": "commands/pi1",
         "batch_size": 10,
         "batch_interval_seconds": 5
     },
     
     "influxdb": {
         "url": "http://localhost:8086",
-        "token": "9rUKkAEYL0NDb6iimF4ahGShwkqyMPHbR_KyHU0uj2DALRKHD-842QqJnZWD4Ay7IqG0CS_ZPw4b1_DW6O5aIw==",
+        "token": "iot-influx-token",
         "org": "FTN",
         "bucket": "NTP"
     },
     
     "DS1": {
-        "simulated": true,
+        "simulated": false,
         "pin": 5
     },
 
@@ -52,7 +54,7 @@
     },
 
     "DPIR1": {
-        "simulated": true,
+        "simulated": false,
         "pin": 6
     },
 
@@ -67,7 +69,7 @@
     },
 
     "DUS1": {
-        "simulated": true,
+        "simulated": false,
         "trig_pin": 23,
         "echo_pin": 24
     },
@@ -79,18 +81,18 @@
     },
 
     "DMS": {
-        "simulated": true,
+        "simulated": false,
         "rows": [25, 8, 7, 1],
         "cols": [12, 16, 20, 21]
     },
 
     "DL": {
-        "simulated": true,
+        "simulated": false,
         "pin": 17
     },
 
     "DB": {
-        "simulated": true,
+        "simulated": false,
         "pin": 27
     },
 
@@ -111,7 +113,7 @@
     },
 
     "ALARM": {
-        "simulated": true,
+        "simulated": false,
         "pin_code": "1234",
         "arming_delay_seconds": 10,
         "ds_open_timeout_seconds": 5,
@@ -136,7 +138,7 @@
     },
 
     "DHT3": {
-        "simulated": false,
+        "simulated": true,
         "pin": 17
     },
 
@@ -169,7 +171,7 @@
         "simulated": false,
         "auto_start": false,
         "port": 8080,
-        "stream_url": "http://localhost:8080/?action=stream",
+        "stream_url": "http://192.168.107.143:8080/?action=stream",
         "mjpg_command": "mjpg_streamer -i \"input_uvc.so\" -o \"output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www\""
     }
 }

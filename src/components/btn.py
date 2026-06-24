@@ -15,10 +15,10 @@ def run_btn(
 ):
     """
     Start BTN: in real mode, GPIO button invokes callback on press.
-    In simulated mode no thread is started; use TUI "4sd btn" or API to trigger.
+    In simulated mode no thread is started; use the web dashboard or API to trigger.
     """
     if settings.get("simulated", True):
-        print("[BTN] Simulated mode: use '4sd btn' in TUI or API to add seconds")
+        print("[BTN] Simulated mode: use the web dashboard or API to add seconds")
         return
 
     try:

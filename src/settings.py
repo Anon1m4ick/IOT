@@ -3,48 +3,48 @@ import os
 from typing import Dict
 
 
+def _env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
 def _apply_env_overrides(settings: Dict) -> Dict:
-    """Apply environment variable overrides so the same settings file works
-    locally, inside Docker, and on a real Raspberry Pi without code changes.
+    """Override infrastructure endpoints without changing device simulation flags."""
+    mqtt = settings.get("mqtt")
+    if isinstance(mqtt, dict):
+        broker_host = _env_first("IOT_MQTT_HOST", "MQTT_BROKER_HOST")
+        if broker_host:
+            mqtt["broker_host"] = broker_host
 
-    On a Pi the broker/server live on another machine, so the publisher must
-    target that host instead of ``localhost``. Set ``MQTT_BROKER_HOST`` to the
-    server's IP (or ``mosquitto`` inside Docker) to make publishing work.
-    """
-    mqtt = settings.setdefault("mqtt", {})
-    influx = settings.setdefault("influxdb", {})
-
-    broker_host = os.environ.get("MQTT_BROKER_HOST")
-    if broker_host:
-        mqtt["broker_host"] = broker_host
-
-    broker_port = os.environ.get("MQTT_BROKER_PORT")
-    if broker_port:
-        try:
+        broker_port = _env_first("IOT_MQTT_PORT", "MQTT_BROKER_PORT")
+        if broker_port:
             mqtt["broker_port"] = int(broker_port)
-        except ValueError:
-            pass
 
-    influx_url = os.environ.get("INFLUXDB_URL")
-    if influx_url:
-        influx["url"] = influx_url
+    influxdb = settings.get("influxdb")
+    if isinstance(influxdb, dict):
+        influx_url = _env_first("IOT_INFLUXDB_URL", "INFLUXDB_URL")
+        if influx_url:
+            influxdb["url"] = influx_url
 
-    influx_token = os.environ.get("INFLUXDB_TOKEN")
-    if influx_token:
-        influx["token"] = influx_token
+        influx_token = _env_first("IOT_INFLUXDB_TOKEN", "INFLUXDB_TOKEN")
+        if influx_token:
+            influxdb["token"] = influx_token
 
-    influx_org = os.environ.get("INFLUXDB_ORG")
-    if influx_org:
-        influx["org"] = influx_org
+        influx_org = _env_first("IOT_INFLUXDB_ORG", "INFLUXDB_ORG")
+        if influx_org:
+            influxdb["org"] = influx_org
 
-    influx_bucket = os.environ.get("INFLUXDB_BUCKET")
-    if influx_bucket:
-        influx["bucket"] = influx_bucket
+        influx_bucket = _env_first("IOT_INFLUXDB_BUCKET", "INFLUXDB_BUCKET")
+        if influx_bucket:
+            influxdb["bucket"] = influx_bucket
 
     return settings
 
 
-def load_settings(filePath: str = 'settings.json') -> Dict:
-    with open(filePath, 'r') as f:
+def load_settings(filePath: str = "settings.json") -> Dict:
+    with open(filePath, "r", encoding="utf-8") as f:
         settings = json.load(f)
     return _apply_env_overrides(settings)

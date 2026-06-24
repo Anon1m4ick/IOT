@@ -96,20 +96,20 @@ class BRGB:
         
         Args:
             number: Button number (1-9, 0)
-                   1 = off, 2 = white, 3 = red, 4 = green, 5 = blue,
-                   6 = yellow, 7 = purple, 8 = light blue, 9 = red (repeat), 0 = off
+                   0 = off, 1 = white, 2 = red, 3 = green, 4 = blue,
+                   5 = yellow, 6 = purple, 7 = light blue, 8 = off, 9 = white
         """
         color_map = {
-            1: self.turn_off,
-            2: self.white,
-            3: self.red,
-            4: self.green,
-            5: self.blue,
-            6: self.yellow,
-            7: self.purple,
-            8: self.light_blue,
-            9: self.red,  # Repeat red
-            0: self.turn_off  # Repeat off
+            0: self.turn_off,
+            1: self.white,
+            2: self.red,
+            3: self.green,
+            4: self.blue,
+            5: self.yellow,
+            6: self.purple,
+            7: self.light_blue,
+            8: self.turn_off,
+            9: self.white,
         }
         
         if number in color_map:
