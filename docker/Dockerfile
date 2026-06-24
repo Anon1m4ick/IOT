@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN grep -v '^RPi\.GPIO' requirements.txt > /tmp/requirements-docker.txt \
+    && pip install --no-cache-dir -r /tmp/requirements-docker.txt
 
 COPY . .
 

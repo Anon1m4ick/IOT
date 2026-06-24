@@ -343,6 +343,9 @@ class MQTTInfluxDBBridge:
 
     def publish_command(self, action: str, payload: Optional[Dict[str, Any]] = None) -> bool:
         if not self.mqtt_client or not self.connected:
+            print("[Server] MQTT is not connected; attempting reconnect before publishing command")
+            self.connect_mqtt()
+        if not self.mqtt_client or not self.connected:
             return False
         command = {
             "action": str(action).strip().lower(),
@@ -400,6 +403,14 @@ class MQTTInfluxDBBridge:
         if self.mqtt_client and self.connected:
             print("[Server] Already connected to MQTT broker")
             return
+
+        if self.mqtt_client and not self.connected:
+            try:
+                self.mqtt_client.loop_stop()
+                self.mqtt_client.disconnect()
+            except Exception:
+                pass
+            self.mqtt_client = None
         
         try:
             server_client_id = self.mqtt_config.get('server_client_id', 'iot_server')
