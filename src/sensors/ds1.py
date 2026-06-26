@@ -5,6 +5,7 @@ matching the simulator behaviour.
 """
 import time
 import threading
+from typing import Optional
 
 try:
     import RPi.GPIO as GPIO  # type: ignore
@@ -66,7 +67,7 @@ class DS1:
             GPIO.cleanup()
 
 
-def run_ds1_loop(ds1_instance: DS1, interval: float = 0.1, callback=None, stop_event: threading.Event | None = None):
+def run_ds1_loop(ds1_instance: DS1, interval: float = 0.1, callback=None, stop_event: Optional[threading.Event] = None):
     """
     Continuous loop that polls DS1 state and calls callback on changes.
 
