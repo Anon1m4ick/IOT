@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from typing import Optional
 
 import paho.mqtt.client as mqtt
 
@@ -51,7 +52,7 @@ BRGB_COLOR_TO_BUTTON = {
 }
 
 
-def log_line(sensor_name: str, message: str, pi: str | None = None):
+def log_line(sensor_name: str, message: str, pi: Optional[str] = None):
     timestamp = time.strftime("%H:%M:%S", time.localtime())
     owner = pi or SENSOR_TO_PI.get(sensor_name, "PI1")
     print(f"{timestamp} [{owner}] {sensor_name:<8} {message}", flush=True)

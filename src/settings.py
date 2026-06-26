@@ -1,9 +1,9 @@
 import json
 import os
-from typing import Dict
+from typing import Dict, Optional
 
 
-def _env_first(*names: str) -> str | None:
+def _env_first(*names: str) -> Optional[str]:
     for name in names:
         value = os.environ.get(name)
         if value:

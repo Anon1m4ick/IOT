@@ -44,7 +44,7 @@
     },
     
     "DS1": {
-        "simulated": false,
+        "simulated": true,
         "pin": 5
     },
 
@@ -54,7 +54,7 @@
     },
 
     "DPIR1": {
-        "simulated": false,
+        "simulated": true,
         "pin": 6
     },
 
@@ -69,7 +69,7 @@
     },
 
     "DUS1": {
-        "simulated": false,
+        "simulated": true,
         "trig_pin": 23,
         "echo_pin": 24
     },
@@ -81,18 +81,18 @@
     },
 
     "DMS": {
-        "simulated": false,
+        "simulated": true,
         "rows": [25, 8, 7, 1],
         "cols": [12, 16, 20, 21]
     },
 
     "DL": {
-        "simulated": false,
+        "simulated": true,
         "pin": 17
     },
 
     "DB": {
-        "simulated": false,
+        "simulated": true,
         "pin": 27
     },
 
