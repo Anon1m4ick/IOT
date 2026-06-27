@@ -6,7 +6,7 @@ import threading
 from dht_data_store import get_dht_data
 
 
-def run_lcd_simulator(rotation_interval, callback, stop_event):
+def run_lcd_simulator(rotation_interval, callback, stop_event, simulator_scheduler=None):
     """
     Simulate LCD display by printing to console.
     Rotates between DHT1, DHT2, DHT3 every rotation_interval seconds.
@@ -21,6 +21,8 @@ def run_lcd_simulator(rotation_interval, callback, stop_event):
     
     while not stop_event.is_set():
         try:
+            if simulator_scheduler and not simulator_scheduler.wait_for_turn("LCD"):
+                break
             # Get current DHT sensor data
             dht_id = dht_sensors[current_index]
             data = get_dht_data(dht_id)
@@ -43,11 +45,12 @@ def run_lcd_simulator(rotation_interval, callback, stop_event):
                 else:
                     print(f"[LCD Simulator] {display_text}")
             
-            # Rotate to next sensor after rotation_interval seconds
-            for _ in range(int(rotation_interval * 10)):  # Check every 0.1 seconds
-                if stop_event.is_set():
-                    break
-                time.sleep(0.1)
+            if not simulator_scheduler:
+                # Rotate to next sensor after rotation_interval seconds
+                for _ in range(int(rotation_interval * 10)):  # Check every 0.1 seconds
+                    if stop_event.is_set():
+                        break
+                    time.sleep(0.1)
             
             # Move to next sensor
             current_index = (current_index + 1) % len(dht_sensors)

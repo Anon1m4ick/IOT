@@ -30,6 +30,7 @@ from components.ir import run_ir
 from components.lcd import run_lcd
 from mqtt_publisher import MQTTPublisher
 from settings import load_settings
+from simulator_scheduler import build_simulator_scheduler
 
 
 SENSOR_TO_PI = {
@@ -69,6 +70,7 @@ class SmartHomeRuntime:
         self.control_topic = "commands/pi1"
         self.brgb_handler = None
         self.alarm_controller = None
+        self.simulator_scheduler = build_simulator_scheduler(settings, self.stop_event)
 
         self._init_actuators()
         self._init_mqtt_publisher()
@@ -140,7 +142,6 @@ class SmartHomeRuntime:
             self.actuators,
             mqtt_publisher=self.mqtt_publisher,
             event_callback=lambda message: self._log("ALARM", message),
-            status_callback=lambda message: self._log("ALARM", message),
         )
 
     def _start_control_listener(self):
@@ -377,7 +378,7 @@ class SmartHomeRuntime:
                     state = parse_pressed_released(message)
                     if state is not None:
                         self.alarm_controller.handle_ds("DS1", state)
-            run_ds1(self.settings["DS1"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_ds1(self.settings["DS1"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DS2" in self.settings:
             def callback(message):
@@ -386,42 +387,42 @@ class SmartHomeRuntime:
                     state = parse_pressed_released(message)
                     if state is not None:
                         self.alarm_controller.handle_ds("DS2", state)
-            run_ds2(self.settings["DS2"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_ds2(self.settings["DS2"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DUS1" in self.settings:
             def callback(message):
                 self._log("DUS1", message)
                 if self.alarm_controller and isinstance(message, (int, float)):
                     self.alarm_controller.handle_dus("DUS1", message)
-            run_dus1(self.settings["DUS1"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dus1(self.settings["DUS1"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DUS2" in self.settings:
             def callback(message):
                 self._log("DUS2", message)
                 if self.alarm_controller and isinstance(message, (int, float)):
                     self.alarm_controller.handle_dus("DUS2", message)
-            run_dus2(self.settings["DUS2"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dus2(self.settings["DUS2"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DPIR1" in self.settings:
             def callback(message):
                 self._log("DPIR1", message)
                 if self.alarm_controller and "motion" in str(message).lower():
                     self.alarm_controller.handle_pir("DPIR1")
-            run_dpir1(self.settings["DPIR1"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dpir1(self.settings["DPIR1"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DPIR2" in self.settings:
             def callback(message):
                 self._log("DPIR2", message)
                 if self.alarm_controller and "motion" in str(message).lower():
                     self.alarm_controller.handle_pir("DPIR2")
-            run_dpir2(self.settings["DPIR2"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dpir2(self.settings["DPIR2"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DPIR3" in self.settings:
             def callback(message):
                 self._log("DPIR3", message)
                 if self.alarm_controller and "motion" in str(message).lower():
                     self.alarm_controller.handle_pir("DPIR3")
-            run_dpir3(self.settings["DPIR3"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dpir3(self.settings["DPIR3"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DMS" in self.settings:
             def callback(message):
@@ -430,25 +431,25 @@ class SmartHomeRuntime:
                     key = parse_dms_button(message)
                     if key:
                         self.alarm_controller.handle_dms_key(key)
-            run_dms(self.settings["DMS"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dms(self.settings["DMS"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DHT1" in self.settings:
             def callback(humidity, temperature, code):
                 self._log("DHT1", f"Humidity: {humidity}%, Temperature: {temperature}C, Code: {code}")
-            run_dht1(self.settings["DHT1"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dht1(self.settings["DHT1"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DHT2" in self.settings:
             def callback(humidity, temperature, code):
                 self._log("DHT2", f"Humidity: {humidity}%, Temperature: {temperature}C, Code: {code}")
-            run_dht2(self.settings["DHT2"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dht2(self.settings["DHT2"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "DHT3" in self.settings:
             def callback(humidity, temperature, code):
                 self._log("DHT3", f"Humidity: {humidity}%, Temperature: {temperature}C, Code: {code}")
-            run_dht3(self.settings["DHT3"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_dht3(self.settings["DHT3"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "LCD" in self.settings:
-            run_lcd(self.settings["LCD"], self.threads, self.stop_event, lambda msg: self._log("LCD", msg), self.mqtt_publisher)
+            run_lcd(self.settings["LCD"], self.threads, self.stop_event, lambda msg: self._log("LCD", msg), self.mqtt_publisher, self.simulator_scheduler)
 
         if "4SD" in self.settings:
             self.actuators["4SD"] = run_4sd(
@@ -472,7 +473,7 @@ class SmartHomeRuntime:
                 self._log("GSG", f"{'Movement detected' if value == 1 else 'No movement'} ({value})")
                 if self.alarm_controller:
                     self.alarm_controller.handle_gsg(value)
-            run_gsg(self.settings["GSG"], self.threads, self.stop_event, callback, self.mqtt_publisher)
+            run_gsg(self.settings["GSG"], self.threads, self.stop_event, callback, self.mqtt_publisher, self.simulator_scheduler)
 
         if "BRGB" in self.settings:
             self.brgb_handler = run_brgb(
@@ -496,6 +497,9 @@ class SmartHomeRuntime:
     def _log(self, sensor_name: str, message):
         if not self.stop_event.is_set():
             log_line(sensor_name, str(message))
+
+
+HeadlessSmartHome = SmartHomeRuntime
 
 
 def _resolve_settings_path():

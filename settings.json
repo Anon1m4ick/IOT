@@ -42,6 +42,12 @@
         "org": "FTN",
         "bucket": "NTP"
     },
+
+    "simulation": {
+        "ordered": true,
+        "slot_delay_seconds": 1.0,
+        "order": ["DUS1", "DUS2", "DHT1", "DHT2", "DHT3", "LCD", "GSG", "DS1", "DS2", "DPIR1", "DPIR2", "DPIR3", "DMS"]
+    },
     
     "DS1": {
         "simulated": true,

@@ -23,7 +23,22 @@ def generate_values(initial_value=0):
 #         if stop_event.is_set():
 #             break
 
-def run_ds1_simulator(callback, stop_event):
+def run_ds1_simulator(callback, stop_event, simulator_scheduler=None):
+    if simulator_scheduler:
+        state = 0
+        slot_count = 0
+        while not stop_event.is_set():
+            if not simulator_scheduler.wait_for_turn("DS1"):
+                break
+            slot_count += 1
+            if state == 0 and slot_count % 12 == 0:
+                state = 1
+                callback("Button Pressed")
+            elif state == 1:
+                state = 0
+                callback("Button Released")
+        return
+
     previous_state = None
     for button_state in generate_values():
         if previous_state is not None and previous_state != button_state:

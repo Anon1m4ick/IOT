@@ -10,7 +10,7 @@ def lcd_callback(message):
     print(f"LCD: {message}")
 
 
-def run_lcd(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_lcd(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     """
     Run LCD component.
     
@@ -30,7 +30,7 @@ def run_lcd(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         print("Starting LCD simulator")
         lcd_thread = threading.Thread(
             target=run_lcd_simulator,
-            args=(rotation_interval, callback, stop_event)
+            args=(rotation_interval, callback, stop_event, simulator_scheduler)
         )
         lcd_thread.start()
         threads.append(lcd_thread)

@@ -12,7 +12,7 @@ def gsg_callback(message):
     print(f"GSG: {status} ({message})")
 
 
-def run_gsg(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_gsg(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     """
     Run GSG component.
     
@@ -43,7 +43,7 @@ def run_gsg(settings, threads, stop_event, callback=None, mqtt_publisher=None):
         print("Starting GSG simulator")
         gsg_thread = threading.Thread(
             target=run_gsg_simulator,
-            args=(interval, enhanced_callback, stop_event)
+            args=(interval, enhanced_callback, stop_event, simulator_scheduler)
         )
         gsg_thread.start()
         threads.append(gsg_thread)

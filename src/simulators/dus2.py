@@ -1,13 +1,16 @@
 import time
 import random
 
-def run_dus2_simulator(callback, stop_event):
+def run_dus2_simulator(callback, stop_event, simulator_scheduler=None):
     min_distance = 0
     max_distance = 50
     current_distance = min_distance
     is_opening = True
 
     while not stop_event.is_set():
+        if simulator_scheduler and not simulator_scheduler.wait_for_turn("DUS2"):
+            break
+
         step = random.uniform(2.0, 5.0)
 
         if is_opening:
@@ -25,4 +28,5 @@ def run_dus2_simulator(callback, stop_event):
 
         callback(int(current_distance))
 
-        time.sleep(random.uniform(1.2, 2.0))
+        if not simulator_scheduler:
+            time.sleep(random.uniform(1.2, 2.0))

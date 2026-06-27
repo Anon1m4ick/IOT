@@ -9,7 +9,7 @@ def dus1_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Dust distance: {message}")
 
-def run_dus1(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_dus1(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = dus1_callback
     
@@ -21,7 +21,7 @@ def run_dus1(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     
     if settings['simulated']:
         print("Starting dus1 simulator")
-        dus1_thread = threading.Thread(target=run_dus1_simulator, args=(enhanced_callback, stop_event))
+        dus1_thread = threading.Thread(target=run_dus1_simulator, args=(enhanced_callback, stop_event, simulator_scheduler))
         dus1_thread.start()
         threads.append(dus1_thread)
         print("Dus1 simulator started")
