@@ -6,7 +6,7 @@ import time
 import random
 
 
-def run_gsg_simulator(interval, callback, stop_event):
+def run_gsg_simulator(interval, callback, stop_event, simulator_scheduler=None):
     """
     Simulate GSG sensor by generating random 0/1 values.
     
@@ -17,10 +17,13 @@ def run_gsg_simulator(interval, callback, stop_event):
     """
     while not stop_event.is_set():
         try:
+            if simulator_scheduler and not simulator_scheduler.wait_for_turn("GSG"):
+                break
             # Keep movement events rare to avoid frequent alarm triggers.
             movement = 1 if random.random() < 0.003 else 0
             callback(movement)
-            time.sleep(interval)
+            if not simulator_scheduler:
+                time.sleep(interval)
         except Exception as e:
             print(f"[GSG Simulator] Error: {e}")
             time.sleep(1)

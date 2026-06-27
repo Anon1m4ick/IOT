@@ -11,7 +11,17 @@ def generate_values(initial_value=0):
             state = 1 - state
         yield state
 
-def run_dpir2_simulator(callback, stop_event):
+def run_dpir2_simulator(callback, stop_event, simulator_scheduler=None):
+    if simulator_scheduler:
+        slot_count = 0
+        while not stop_event.is_set():
+            if not simulator_scheduler.wait_for_turn("DPIR2"):
+                break
+            slot_count += 1
+            if slot_count % 20 == 0:
+                callback("Motion detected")
+        return
+
     previous_state = None
     for dpir2_state in generate_values():
         if previous_state is not None and previous_state == 0 and dpir2_state == 1:

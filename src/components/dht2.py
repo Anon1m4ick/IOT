@@ -11,7 +11,7 @@ def dht2_callback(humidity, temperature, code):
     print(f"Humidity: {humidity}%")
     print(f"Temperature: {temperature}°C")
 
-def run_dht2(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_dht2(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = dht2_callback
     
@@ -27,7 +27,7 @@ def run_dht2(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     
     if settings['simulated']:
         print("Starting dht2 simulator")
-        dht2_thread = threading.Thread(target=run_dht2_simulator, args=(2, enhanced_callback, stop_event))
+        dht2_thread = threading.Thread(target=run_dht2_simulator, args=(2, enhanced_callback, stop_event, simulator_scheduler))
         dht2_thread.start()
         threads.append(dht2_thread)
         print("Dht2 simulator started")

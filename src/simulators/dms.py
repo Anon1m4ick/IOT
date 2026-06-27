@@ -15,7 +15,17 @@ def generate_values(initial_value=""):
         else:
             yield None
 
-def run_dms_simulator(callback, stop_event):
+def run_dms_simulator(callback, stop_event, simulator_scheduler=None):
+    if simulator_scheduler:
+        slot_count = 0
+        while not stop_event.is_set():
+            if not simulator_scheduler.wait_for_turn("DMS"):
+                break
+            slot_count += 1
+            if slot_count % 30 == 0:
+                callback("Button pressed: *")
+        return
+
     for button in generate_values():
         if button is not None:
             callback(f"Button pressed: {button}")

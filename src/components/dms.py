@@ -8,7 +8,7 @@ def dms_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Message: {message}")
 
-def run_dms(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_dms(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = dms_callback
 
@@ -21,7 +21,7 @@ def run_dms(settings, threads, stop_event, callback=None, mqtt_publisher=None):
 
     if settings['simulated']:
         print("Starting dms simulator")
-        dms_thread = threading.Thread(target=run_dms_simulator, args=(enhanced_callback, stop_event))
+        dms_thread = threading.Thread(target=run_dms_simulator, args=(enhanced_callback, stop_event, simulator_scheduler))
         dms_thread.start()
         threads.append(dms_thread)
         print("Dms simulator started")

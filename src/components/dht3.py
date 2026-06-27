@@ -11,7 +11,7 @@ def dht3_callback(humidity, temperature, code):
     print(f"Humidity: {humidity}%")
     print(f"Temperature: {temperature}°C")
 
-def run_dht3(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_dht3(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = dht3_callback
     
@@ -27,7 +27,7 @@ def run_dht3(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     
     if settings['simulated']:
         print("Starting dht3 simulator")
-        dht3_thread = threading.Thread(target=run_dht3_simulator, args=(2, enhanced_callback, stop_event))
+        dht3_thread = threading.Thread(target=run_dht3_simulator, args=(2, enhanced_callback, stop_event, simulator_scheduler))
         dht3_thread.start()
         threads.append(dht3_thread)
         print("Dht3 simulator started")

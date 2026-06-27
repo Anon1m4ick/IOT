@@ -11,7 +11,7 @@ def dpir1_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Message: {message}")
 
-def run_dpir1(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_dpir1(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = dpir1_callback
     
@@ -23,7 +23,7 @@ def run_dpir1(settings, threads, stop_event, callback=None, mqtt_publisher=None)
     
     if settings['simulated']:
         print("Starting dpir1 simulator")
-        dpir1_thread = threading.Thread(target=run_dpir1_simulator, args=(enhanced_callback, stop_event))
+        dpir1_thread = threading.Thread(target=run_dpir1_simulator, args=(enhanced_callback, stop_event, simulator_scheduler))
         dpir1_thread.start()
         threads.append(dpir1_thread)
         print("Dpir1 simulator started")

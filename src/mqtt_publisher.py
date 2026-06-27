@@ -44,7 +44,7 @@ class MQTTPublisher:
                 code = getattr(rc, 'getName', lambda: str(rc))()
             print(f"[MQTT] Connection failed: {code}")
 
-    def _on_disconnect(self, client, userdata, rc, properties=None):
+    def _on_disconnect(self, client, userdata, *args):
 
         self.connected = False
         self.connection_established.clear()

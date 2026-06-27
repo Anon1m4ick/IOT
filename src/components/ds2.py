@@ -10,7 +10,7 @@ def ds2_callback(message):
     print(f"Timestamp: {time.strftime('%H:%M:%S', t)}")
     print(f"Message: {message}")
 
-def run_ds2(settings, threads, stop_event, callback=None, mqtt_publisher=None):
+def run_ds2(settings, threads, stop_event, callback=None, mqtt_publisher=None, simulator_scheduler=None):
     if callback is None:
         callback = ds2_callback
 
@@ -22,7 +22,7 @@ def run_ds2(settings, threads, stop_event, callback=None, mqtt_publisher=None):
     
     if settings['simulated']:
         print("Starting ds2 simulator")
-        ds2_thread = threading.Thread(target=run_ds2_simulator, args=(enhanced_callback, stop_event))
+        ds2_thread = threading.Thread(target=run_ds2_simulator, args=(enhanced_callback, stop_event, simulator_scheduler))
         ds2_thread.start()
         threads.append(ds2_thread)
         print("Ds2 simulator started")
