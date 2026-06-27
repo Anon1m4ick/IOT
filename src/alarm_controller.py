@@ -92,6 +92,11 @@ class AlarmController:
     def trigger_alarm(self, reason: str):
         self._activate_alarm(reason)
 
+    def clear_dus_history(self, dus_name: str):
+        with self._lock:
+            if dus_name in self._dus_history:
+                self._dus_history[dus_name].clear()
+
     def handle_ds(self, sensor_name: str, state: int):
         state = 1 if int(state) else 0
         now = time.monotonic()

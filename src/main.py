@@ -344,7 +344,10 @@ class SmartHomeRuntime:
         )
         entering = direction.strip().lower() == "enter"
         increasing = entering if entry_on_increasing else not entering
-        values = [60, 90, 120, 150] if increasing else [150, 120, 90, 60]
+        values = [10, 20, 30, 40] if increasing else [40, 30, 20, 10]
+        history = self.alarm_controller._dus_history.get(dus)
+        if history is not None:
+                history.clear()
         for value in values:
             self.alarm_controller.handle_dus(dus, value)
             self._publish_runtime_value(dus, value, self.settings.get(dus, {}).get("simulated", True))
